@@ -126,7 +126,15 @@
         .product-card:hover .product-img {
             transform: scale(1.05);
         }
-
+.clear-search {
+            position: absolute;
+            right: 50px;
+            background: transparent;
+            border: none;
+            color: #999;
+            cursor: pointer;
+            display: none;
+        }
         .product-badge {
             position: absolute;
             top: 10px;
@@ -675,6 +683,9 @@
             border-top-color: var(--primary-color);
             animation: spin 1s linear infinite;
         }
+        .btn-loading .spinner-border {
+    margin-right: 5px;
+}
         /* Cart quantity selector styles */
 .quantity-selector {
     display: flex;
@@ -906,6 +917,9 @@
             <div class="col-md-12">
                 <div class="search-input-group">
                     <input type="text" class="form-control search-input" id="searchInput" placeholder="Search products...">
+                    <button class="clear-search" id="clearSearchBtn">
+                        <i class="fas fa-times"></i>
+                    </button>
                     <button class="search-btn" id="searchBtn">
                         <i class="fas fa-search"></i>
                     </button>
@@ -1043,7 +1057,7 @@
             
             <div class="d-flex justify-content-between mb-2">
                 <span>Delivery:</span>
-                <span id="cartDeliveryPrice">$2.00</span>
+                <span id="cartDeliveryPrice">$5.00</span>
             </div>
             
             <div class="d-flex justify-content-between mb-3">
@@ -1140,7 +1154,13 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" id="confirmOrderBtn">Confirm Order</button>
+              <button type="button" class="btn btn-primary" id="confirmOrderBtn">
+    <span class="btn-text">Confirm Order</span>
+    <span class="btn-loading" style="display: none;">
+        <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+        Processing...
+    </span>
+</button>
             </div>
         </div>
     </div>
@@ -1257,9 +1277,9 @@ function debounce(func, wait) {
 }
 
     function setupEventListeners() {
-        // Search functionality
-       document.getElementById('searchInput').addEventListener('input', debounce(handleSearch, 300));
-       document.getElementById('searchBtn').addEventListener('click', handleSearch);
+      document.getElementById('searchInput').addEventListener('input', debounce(handleSearch, 300));
+        document.getElementById('searchBtn').addEventListener('click', handleSearch);
+        document.getElementById('clearSearchBtn').addEventListener('click', clearSearch);
         
         // Cart functionality
         document.getElementById('cartNavBtn').addEventListener('click', toggleCart);
@@ -1278,48 +1298,53 @@ function debounce(func, wait) {
         galleryPrev.addEventListener('click', () => navigateGallery('prev'));
         galleryNext.addEventListener('click', () => navigateGallery('next'));
         
-        // Lazy load images
+
         setupLazyLoading();
+    window.addEventListener('scroll', debounce(handleLazyLoadScroll, 100));
+    
     }
 
-   function loadInitialProducts() {
-    productsGrid.innerHTML = '';
-    productsLoading.style.display = 'flex';
-    
-    db.collection('products')
-        .where('active', '==', true)
-        .orderBy('createdAt', 'desc')
-        .limit(PRODUCTS_PER_PAGE)
-        .get()
-        .then((querySnapshot) => {
-            products = [];
-            querySnapshot.forEach((doc) => {
-                const data = doc.data();
-                if (typeof data.price === 'string') {
-                    data.price = parseFloat(data.price);
+  function loadInitialProducts() {
+        productsGrid.innerHTML = '';
+        productsLoading.style.display = 'flex';
+        
+        // Reset pagination state
+        hasMoreProducts = true;
+        lastVisible = null;
+        
+        db.collection('products')
+            .where('active', '==', true)
+            .orderBy('createdAt', 'desc')
+            .limit(PRODUCTS_PER_PAGE)
+            .get()
+            .then((querySnapshot) => {
+                products = [];
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    if (typeof data.price === 'string') {
+                        data.price = parseFloat(data.price);
+                    }
+                    if (data.oldPrice && typeof data.oldPrice === 'string') {
+                        data.oldPrice = parseFloat(data.oldPrice);
+                    }
+                    products.push({ id: doc.id, ...data });
+                });
+                
+                lastVisible = querySnapshot.docs[querySnapshot.docs.length-1];
+                
+                if (querySnapshot.size < PRODUCTS_PER_PAGE) {
+                    hasMoreProducts = false;
                 }
-                if (data.oldPrice && typeof data.oldPrice === 'string') {
-                    data.oldPrice = parseFloat(data.oldPrice);
-                }
-                products.push({ id: doc.id, ...data });
+                
+                displayProducts(products);
+                productsLoading.style.display = 'none';
+            })
+            .catch((error) => {
+                console.error("Error loading products: ", error);
+                productsGrid.innerHTML = '<div class="alert alert-danger">Error loading products</div>';
+                productsLoading.style.display = 'none';
             });
-            
-            lastVisible = querySnapshot.docs[querySnapshot.docs.length-1];
-            
-            if (querySnapshot.size < PRODUCTS_PER_PAGE) {
-                hasMoreProducts = false;
-            }
-            
-            displayProducts(products);
-            productsLoading.style.display = 'none';
-        })
-        .catch((error) => {
-            console.error("Error loading products: ", error);
-            productsGrid.innerHTML = '<div class="alert alert-danger">Error loading products</div>';
-            productsLoading.style.display = 'none';
-        });
-}
-
+    }
 
   function loadMoreProducts() {
     if (!hasMoreProducts || isLoading) return;
@@ -1370,27 +1395,17 @@ function handleScroll() {
     // Get all product cards
     const productCards = document.querySelectorAll('.product-card');
     
-    // If we have at least 4 products, check if the 4th one is in view
-    if (productCards.length >= 4) {
-        const fourthProduct = productCards[3]; // 4th product (0-based index)
-        const rect = fourthProduct.getBoundingClientRect();
+    // If we have products, check if the 2nd last product is in view
+    if (productCards.length >= 2) {
+        const secondLastProduct = productCards[productCards.length - 2];
+        const rect = secondLastProduct.getBoundingClientRect();
         
-        // Check if the 4th product is in the viewport or just above it
-        if (rect.top <= window.innerHeight + 100) {
-            loadMoreProducts();
-        }
-    } else if (productCards.length > 0) {
-        // If we have fewer than 4 products, use the last one
-        const lastProduct = productCards[productCards.length - 1];
-        const rect = lastProduct.getBoundingClientRect();
-        
+        // Check if the 2nd last product is in the viewport or just above it
         if (rect.top <= window.innerHeight + 100) {
             loadMoreProducts();
         }
     }
-}
-
-  function displayProducts(productsToDisplay, append = false) {
+}function displayProducts(productsToDisplay, append = false) {
     if (productsToDisplay.length === 0 && !append) {
         noProducts.style.display = 'block';
         productsGrid.style.display = 'none';
@@ -1404,88 +1419,102 @@ function handleScroll() {
         productsGrid.innerHTML = '';
     }
         
-        productsToDisplay.forEach(product => {
-            const discount = product.oldPrice ? Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100) : 0;
-            
-            const productCard = document.createElement('div');
-            productCard.className = 'product-card';
-            
-            // Get the first image URL (handle both single image and multiple images)
-            let imageUrl = 'https://via.placeholder.com/150';
-            if (product.imageUrls && product.imageUrls.length > 0) {
-                imageUrl = product.imageUrls[0];
-            } else if (product.imageUrl) {
-                imageUrl = product.imageUrl;
-            }
-            
-            productCard.innerHTML = `
-                <div class="product-img-container">
-                    <img data-src="${imageUrl}" class="product-img lazy-img" alt="${product.name}">
-                    ${discount > 0 ? `<div class="product-badge">-${discount}%</div>` : ''}
+    productsToDisplay.forEach(product => {
+        const discount = product.oldPrice ? Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100) : 0;
+        
+        const productCard = document.createElement('div');
+        productCard.className = 'product-card';
+        
+        // Get the first image URL (handle both single image and multiple images)
+        let imageUrl = 'https://via.placeholder.com/150';
+        if (product.imageUrls && product.imageUrls.length > 0) {
+            imageUrl = product.imageUrls[0];
+        } else if (product.imageUrl) {
+            imageUrl = product.imageUrl;
+        }
+        
+        productCard.innerHTML = `
+            <div class="product-img-container">
+                <img data-src="${imageUrl}" class="product-img lazy-img" alt="${product.name}">
+                ${discount > 0 ? `<div class="product-badge">-${discount}%</div>` : ''}
+            </div>
+            <div class="p-3">
+                <h6 class="mb-1">${product.name}</h6>
+                <div class="d-flex align-items-center">
+                    <span class="product-price">$${product.price.toFixed(2)}</span>
+                    ${product.oldPrice ? `<span class="product-old-price ms-2">$${product.oldPrice.toFixed(2)}</span>` : ''}
                 </div>
-                <div class="p-3">
-                    <h6 class="mb-1">${product.name}</h6>
-                    <div class="d-flex align-items-center">
-                        <span class="product-price">$${product.price.toFixed(2)}</span>
-                        ${product.oldPrice ? `<span class="product-old-price ms-2">$${product.oldPrice.toFixed(2)}</span>` : ''}
-                    </div>
-                    <button class="add-to-cart" data-id="${product.id}">
-                        <i class="fas fa-cart-plus"></i> Add to Cart
-                    </button>
-                </div>
-            `;
-            
-            productCard.querySelector('.add-to-cart').addEventListener('click', (e) => {
-                e.stopPropagation();
-                addToCart(product.id);
-            });
-            
-            productCard.addEventListener('click', () => {
-                showProductDetails(product);
-            });
-            
-            productsGrid.appendChild(productCard);
+                <button class="add-to-cart" data-id="${product.id}">
+                    <i class="fas fa-cart-plus"></i> Add to Cart
+                </button>
+            </div>
+        `;
+        
+        productCard.querySelector('.add-to-cart').addEventListener('click', (e) => {
+            e.stopPropagation();
+            addToCart(product.id);
         });
         
-        // Trigger lazy loading for newly added images
+        productCard.addEventListener('click', () => {
+            showProductDetails(product);
+        });
+        
+        productsGrid.appendChild(productCard);
+    });
+    
+    // Trigger lazy loading for newly added images
+    lazyLoadImages();
+    
+    // Re-initialize the Intersection Observer for new images
+    setupLazyLoading();
+}
+function setupLazyLoading() {
+    // Remove any existing observers
+    if (window.lazyImageObserver) {
+        window.lazyImageObserver.disconnect();
+    }
+    
+    // Create Intersection Observer for lazy loading images
+    if ('IntersectionObserver' in window) {
+        window.lazyImageObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const lazyImage = entry.target;
+                    lazyImage.src = lazyImage.dataset.src;
+                    lazyImage.classList.add('loaded');
+                    lazyImageObserver.unobserve(lazyImage);
+                }
+            });
+        });
+        
+        // Observe all lazy images
+        document.querySelectorAll('.lazy-img:not(.loaded)').forEach(lazyImage => {
+            window.lazyImageObserver.observe(lazyImage);
+        });
+    } else {
+        // Fallback for browsers without Intersection Observer
         lazyLoadImages();
     }
+}
 
-    function setupLazyLoading() {
-        // Create Intersection Observer for lazy loading images
-        if ('IntersectionObserver' in window) {
-            const lazyImageObserver = new IntersectionObserver((entries, observer) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        const lazyImage = entry.target;
-                        lazyImage.src = lazyImage.dataset.src;
-                        lazyImage.classList.add('loaded');
-                        lazyImageObserver.unobserve(lazyImage);
-                    }
-                });
-            });
-            
-            // Observe all lazy images
-            document.querySelectorAll('.lazy-img').forEach(lazyImage => {
-                lazyImageObserver.observe(lazyImage);
-            });
-        } else {
-            // Fallback for browsers without Intersection Observer
-            lazyLoadImages();
+// Update your lazyLoadImages function to be more aggressive
+function lazyLoadImages() {
+    const lazyImages = document.querySelectorAll('.lazy-img:not(.loaded)');
+    
+    lazyImages.forEach(img => {
+        // Load images that are in or near the viewport
+        const rect = img.getBoundingClientRect();
+        if (rect.top < window.innerHeight + 500 && rect.bottom > -500) {
+            img.src = img.dataset.src;
+            img.classList.add('loaded');
         }
-    }
+    });
+}
 
-    function lazyLoadImages() {
-        const lazyImages = document.querySelectorAll('.lazy-img');
-        
-        lazyImages.forEach(img => {
-            if (img.getBoundingClientRect().top < window.innerHeight && img.getBoundingClientRect().bottom > 0) {
-                img.src = img.dataset.src;
-                img.classList.add('loaded');
-            }
-        });
-    }
-
+// Add this function to handle scroll events for lazy loading
+function handleLazyLoadScroll() {
+    lazyLoadImages();
+}
     function showProductDetails(product) {
         currentProduct = product;
         
@@ -1745,10 +1774,14 @@ function handleScroll() {
         
         cartSummary.style.display = 'block';
     }
+     function clearSearch() {
+        document.getElementById('searchInput').value = '';
+        loadInitialProducts();
+    }
 
     function calculateDeliveryFee() {
         // In a real app, this would be based on location
-        return 2.00;
+        return 5.00;
     }
 
     function toggleCart() {
@@ -1762,75 +1795,84 @@ function handleScroll() {
         }
     }
 
-function handleSearch() {
-    const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
-    
-    if (!searchTerm) {
-        // If search is empty, show all products
-        loadInitialProducts();
-        return;
-    }
-    
-    // Show loading state
-    productsGrid.innerHTML = '';
-    productsLoading.style.display = 'flex';
-    noProducts.style.display = 'none';
-    // REMOVE THIS LINE: loadMoreContainer.style.display = 'none';
-    
-    // Search across all products in Firestore
-    db.collection('products')
-        .where('active', '==', true)
-        .orderBy('name')
-        .get()
-        .then((querySnapshot) => {
-            const allProducts = [];
-            querySnapshot.forEach((doc) => {
-                const data = doc.data();
-                // Ensure price is a number
-                if (typeof data.price === 'string') {
-                    data.price = parseFloat(data.price);
-                }
-                if (data.oldPrice && typeof data.oldPrice === 'string') {
-                    data.oldPrice = parseFloat(data.oldPrice);
-                }
-                allProducts.push({ id: doc.id, ...data });
+    function handleSearch() {
+        const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+        const clearSearchBtn = document.getElementById('clearSearchBtn');
+        
+        // Show/hide clear button based on input
+        clearSearchBtn.style.display = searchTerm ? 'block' : 'none';
+        
+        if (!searchTerm) {
+            // If search is empty, show all products with proper pagination
+            loadInitialProducts();
+            return;
+        }
+        
+        // Show loading state
+        productsGrid.innerHTML = '';
+        productsLoading.style.display = 'flex';
+        noProducts.style.display = 'none';
+        
+        // Search across all products in Firestore
+        db.collection('products')
+            .where('active', '==', true)
+            .orderBy('name')
+            .get()
+            .then((querySnapshot) => {
+                const allProducts = [];
+                querySnapshot.forEach((doc) => {
+                    const data = doc.data();
+                    // Ensure price is a number
+                    if (typeof data.price === 'string') {
+                        data.price = parseFloat(data.price);
+                    }
+                    if (data.oldPrice && typeof data.oldPrice === 'string') {
+                        data.oldPrice = parseFloat(data.oldPrice);
+                    }
+                    allProducts.push({ id: doc.id, ...data });
+                });
+                
+                // Filter products based on search term
+                const filteredProducts = allProducts.filter(product => 
+                    product.name.toLowerCase().includes(searchTerm) || 
+                    (product.description && product.description.toLowerCase().includes(searchTerm))
+                );
+                
+                // Display search results
+                displaySearchResults(filteredProducts, searchTerm);
+                productsLoading.style.display = 'none';
+            })
+            .catch((error) => {
+                console.error("Error searching products: ", error);
+                productsGrid.innerHTML = '<div class="alert alert-danger">Error searching products</div>';
+                productsLoading.style.display = 'none';
             });
-            
-            // Filter products based on search term
-            const filteredProducts = allProducts.filter(product => 
-                product.name.toLowerCase().includes(searchTerm) || 
-                (product.description && product.description.toLowerCase().includes(searchTerm))
-            );
-            
-            // Display search results
-            displaySearchResults(filteredProducts, searchTerm);
-            productsLoading.style.display = 'none';
-        })
-        .catch((error) => {
-            console.error("Error searching products: ", error);
-            productsGrid.innerHTML = '<div class="alert alert-danger">Error searching products</div>';
-            productsLoading.style.display = 'none';
-        });
-}
-function displaySearchResults(products, searchTerm) {
-    if (products.length === 0) {
-        noProducts.innerHTML = `
-            <i class="fas fa-search fa-3x mb-3" style="opacity: 0.3;"></i>
-            <h5>No products found</h5>
-            <p>No results for "${searchTerm}"</p>
-        `;
-        noProducts.style.display = 'block';
-        productsGrid.style.display = 'none';
-        return;
     }
-    
-    noProducts.style.display = 'none';
-    productsGrid.style.display = 'grid';
-    productsGrid.innerHTML = '';
-    
-    displayProducts(products);
-}
 
+    function displaySearchResults(products, searchTerm) {
+        if (products.length === 0) {
+            noProducts.innerHTML = `
+                <i class="fas fa-search fa-3x mb-3" style="opacity: 0.3;"></i>
+                <h5>No products found</h5>
+                <p>No results for "${searchTerm}"</p>
+            `;
+            noProducts.style.display = 'block';
+            productsGrid.style.display = 'none';
+            // Reset pagination for when user clears search
+            hasMoreProducts = true;
+            lastVisible = null;
+            return;
+        }
+        
+        noProducts.style.display = 'none';
+        productsGrid.style.display = 'grid';
+        productsGrid.innerHTML = '';
+        
+        // For search results, we don't want pagination
+        hasMoreProducts = false;
+        
+        displayProducts(products);
+    }
     function showCheckoutModal() {
         if (cart.length === 0) {
             alert('Your cart is empty!');
@@ -1864,7 +1906,14 @@ function displaySearchResults(products, searchTerm) {
         
         checkoutModal.show();
     }
-   function handleCheckout() {
+function handleCheckout() {
+    // Show loading state
+    const confirmBtn = document.getElementById('confirmOrderBtn');
+    confirmBtn.disabled = true;
+    confirmBtn.querySelector('.btn-text').style.display = 'none';
+    confirmBtn.querySelector('.btn-loading').style.display = 'inline-block';
+    
+    // Your existing validation code
     const name = document.getElementById('customerName').value;
     const email = document.getElementById('customerEmail').value;
     const phone = document.getElementById('customerPhone').value;
@@ -1973,7 +2022,11 @@ function displaySearchResults(products, searchTerm) {
                 return emailjs.send('service_7pvxrnq', 'template_7nb7y0f', shopTemplateParams);
             })
             .then((response) => {
+                confirmBtn.disabled = false;
+        confirmBtn.querySelector('.btn-text').style.display = 'inline-block';
+        confirmBtn.querySelector('.btn-loading').style.display = 'none';
                 console.log('Shop email sent successfully!', response.status, response.text);
+
                 
                 // Clear cart
                 cart = [];
@@ -1989,6 +2042,9 @@ function displaySearchResults(products, searchTerm) {
                 showNotification('Order placed successfully! We will contact you via WhatsApp for payment details. A confirmation email has been sent.');
             })
             .catch((error) => {
+                confirmBtn.disabled = false;
+        confirmBtn.querySelector('.btn-text').style.display = 'inline-block';
+        confirmBtn.querySelector('.btn-loading').style.display = 'none';
                 console.error('Email sending failed:', error);
                 // Still complete the order even if email fails
                 cart = [];

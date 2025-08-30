@@ -872,14 +872,6 @@
         display: none;
     }
 }
-
-/* Infinite scroll indicator */
-.infinite-scroll-indicator {
-    grid-column: 1 / -1;
-    text-align: center;
-    padding: 20px;
-    color: #6c757d;
-}
     </style>
 </head>
 <body>
@@ -958,14 +950,6 @@
     <!-- Products Loading Indicator -->
     <div class="products-loading" id="productsLoading" style="display: none;">
         <div class="products-loading-circle"></div>
-    </div>
-
-    <!-- Infinite Scroll Indicator -->
-    <div class="infinite-scroll-indicator" id="infiniteScrollIndicator" style="display: none;">
-        <div class="spinner-border spinner-border-sm" role="status">
-            <span class="visually-hidden">Loading more products...</span>
-        </div>
-        <span class="ms-2">Loading more products...</span>
     </div>
 
     <!-- No Products Message -->
@@ -1220,8 +1204,6 @@
     let hasMoreProducts = true;
     const PRODUCTS_PER_PAGE = 6;
     let currentImageIndex = 0;
-    let isSearching = false;
-    let searchTerm = '';
     let isLoading = false;
 
     // DOM elements
@@ -1229,7 +1211,7 @@
     const productsGrid = document.getElementById('productsGrid');
     const productsLoading = document.getElementById('productsLoading');
     const noProducts = document.getElementById('noProducts');
-    const infiniteScrollIndicator = document.getElementById('infiniteScrollIndicator');
+    const loadMoreBtn = document.getElementById('loadMoreBtn');
     const productModal = new bootstrap.Modal(document.getElementById('productModal'));
     const checkoutModal = new bootstrap.Modal(document.getElementById('checkoutModal'));
     const cartSidebar = document.getElementById('cartSidebar');
@@ -1244,35 +1226,40 @@
     document.addEventListener('DOMContentLoaded', function() {
         initializeApp();
         setupEventListeners();
-        setupInfiniteScroll();
     });
 
-    function initializeApp() {
-        // Load initial products from Firestore
-        loadInitialProducts();
-        
-        // Load cart from localStorage
-        const savedCart = localStorage.getItem('ronixShopCart');
-        if (savedCart) {
-            cart = JSON.parse(savedCart);
-            updateCartBadge();
-        }
-        
-        // Hide loading screen after a short delay
-        setTimeout(() => {
-            loadingScreen.classList.add('hidden');
-        }, 1000);
+function initializeApp() {
+    loadInitialProducts();
+    
+    const savedCart = localStorage.getItem('ronixShopCart');
+    if (savedCart) {
+        cart = JSON.parse(savedCart);
+        updateCartBadge();
     }
+    
+    setTimeout(() => {
+        loadingScreen.classList.add('hidden');
+    }, 1000);
+}
+
+
+
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
 
     function setupEventListeners() {
         // Search functionality
-        document.getElementById('searchInput').addEventListener('input', handleSearchInput);
-        document.getElementById('searchBtn').addEventListener('click', handleSearch);
-        document.getElementById('searchInput').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                handleSearch();
-            }
-        });
+       document.getElementById('searchInput').addEventListener('input', debounce(handleSearch, 300));
+       document.getElementById('searchBtn').addEventListener('click', handleSearch);
         
         // Cart functionality
         document.getElementById('cartNavBtn').addEventListener('click', toggleCart);
@@ -1285,6 +1272,7 @@
         
         // Add to cart from modal
         document.getElementById('addToCartBtn').addEventListener('click', addToCartFromModal);
+        window.addEventListener('scroll', debounce(handleScroll, 100));
         
         // Image gallery navigation
         galleryPrev.addEventListener('click', () => navigateGallery('prev'));
@@ -1294,219 +1282,127 @@
         setupLazyLoading();
     }
 
-    function setupInfiniteScroll() {
-        window.addEventListener('scroll', () => {
-            // Check if we're near the bottom of the page
-            const scrollTop = document.documentElement.scrollTop || document.body.scrollTop;
-            const scrollHeight = document.documentElement.scrollHeight || document.body.scrollHeight;
-            const clientHeight = document.documentElement.clientHeight;
+   function loadInitialProducts() {
+    productsGrid.innerHTML = '';
+    productsLoading.style.display = 'flex';
+    
+    db.collection('products')
+        .where('active', '==', true)
+        .orderBy('createdAt', 'desc')
+        .limit(PRODUCTS_PER_PAGE)
+        .get()
+        .then((querySnapshot) => {
+            products = [];
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                if (typeof data.price === 'string') {
+                    data.price = parseFloat(data.price);
+                }
+                if (data.oldPrice && typeof data.oldPrice === 'string') {
+                    data.oldPrice = parseFloat(data.oldPrice);
+                }
+                products.push({ id: doc.id, ...data });
+            });
             
-            // Load more products when we're 200px from the bottom
-            if (scrollTop + clientHeight >= scrollHeight - 200 && 
-                hasMoreProducts && 
-                !isLoading && 
-                !isSearching) {
-                loadMoreProducts();
+            lastVisible = querySnapshot.docs[querySnapshot.docs.length-1];
+            
+            if (querySnapshot.size < PRODUCTS_PER_PAGE) {
+                hasMoreProducts = false;
             }
+            
+            displayProducts(products);
+            productsLoading.style.display = 'none';
+        })
+        .catch((error) => {
+            console.error("Error loading products: ", error);
+            productsGrid.innerHTML = '<div class="alert alert-danger">Error loading products</div>';
+            productsLoading.style.display = 'none';
         });
-    }
+}
 
-    function loadInitialProducts() {
+
+  function loadMoreProducts() {
+    if (!hasMoreProducts || isLoading) return;
+    
+    isLoading = true;
+    productsLoading.style.display = 'flex';
+    
+    db.collection('products')
+        .where('active', '==', true)
+        .orderBy('createdAt', 'desc')
+        .startAfter(lastVisible)
+        .limit(PRODUCTS_PER_PAGE)
+        .get()
+        .then((querySnapshot) => {
+            const newProducts = [];
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                if (typeof data.price === 'string') {
+                    data.price = parseFloat(data.price);
+                }
+                if (data.oldPrice && typeof data.oldPrice === 'string') {
+                    data.oldPrice = parseFloat(data.oldPrice);
+                }
+                newProducts.push({ id: doc.id, ...data });
+            });
+            
+            lastVisible = querySnapshot.docs[querySnapshot.docs.length-1];
+            
+            if (querySnapshot.size < PRODUCTS_PER_PAGE) {
+                hasMoreProducts = false;
+            }
+            
+            products = [...products, ...newProducts];
+            displayProducts(newProducts, true);
+            
+            isLoading = false;
+            productsLoading.style.display = 'none';
+        })
+        .catch((error) => {
+            console.error("Error loading more products: ", error);
+            isLoading = false;
+            productsLoading.style.display = 'none';
+        });
+}
+function handleScroll() {
+    if (!hasMoreProducts || isLoading) return;
+    
+    // Get all product cards
+    const productCards = document.querySelectorAll('.product-card');
+    
+    // If we have at least 4 products, check if the 4th one is in view
+    if (productCards.length >= 4) {
+        const fourthProduct = productCards[3]; // 4th product (0-based index)
+        const rect = fourthProduct.getBoundingClientRect();
+        
+        // Check if the 4th product is in the viewport or just above it
+        if (rect.top <= window.innerHeight + 100) {
+            loadMoreProducts();
+        }
+    } else if (productCards.length > 0) {
+        // If we have fewer than 4 products, use the last one
+        const lastProduct = productCards[productCards.length - 1];
+        const rect = lastProduct.getBoundingClientRect();
+        
+        if (rect.top <= window.innerHeight + 100) {
+            loadMoreProducts();
+        }
+    }
+}
+
+  function displayProducts(productsToDisplay, append = false) {
+    if (productsToDisplay.length === 0 && !append) {
+        noProducts.style.display = 'block';
+        productsGrid.style.display = 'none';
+        return;
+    }
+    
+    noProducts.style.display = 'none';
+    productsGrid.style.display = 'grid';
+    
+    if (!append) {
         productsGrid.innerHTML = '';
-        productsLoading.style.display = 'flex';
-        isSearching = false;
-        searchTerm = '';
-        
-        db.collection('products')
-            .where('active', '==', true)
-            .orderBy('createdAt', 'desc')
-            .limit(PRODUCTS_PER_PAGE)
-            .get()
-            .then((querySnapshot) => {
-                products = [];
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    // Ensure price is a number
-                    if (typeof data.price === 'string') {
-                        data.price = parseFloat(data.price);
-                    }
-                    if (data.oldPrice && typeof data.oldPrice === 'string') {
-                        data.oldPrice = parseFloat(data.oldPrice);
-                    }
-                    products.push({ id: doc.id, ...data });
-                });
-                
-                // Get last document for pagination
-                lastVisible = querySnapshot.docs[querySnapshot.docs.length-1];
-                
-                // Check if there are more products
-                if (querySnapshot.size < PRODUCTS_PER_PAGE) {
-                    hasMoreProducts = false;
-                }
-                
-                displayProducts(products);
-                productsLoading.style.display = 'none';
-            })
-            .catch((error) => {
-                console.error("Error loading products: ", error);
-                productsGrid.innerHTML = '<div class="alert alert-danger">Error loading products</div>';
-                productsLoading.style.display = 'none';
-            });
     }
-
-    function loadMoreProducts() {
-        if (!hasMoreProducts || isLoading) return;
-        
-        isLoading = true;
-        infiniteScrollIndicator.style.display = 'block';
-        
-        let query;
-        if (isSearching && searchTerm) {
-            // Search query - we need to use a composite query for searching
-            query = db.collection('products')
-                .where('active', '==', true)
-                .orderBy('name')
-                .startAfter(lastVisible)
-                .limit(PRODUCTS_PER_PAGE);
-        } else {
-            // Regular query
-            query = db.collection('products')
-                .where('active', '==', true)
-                .orderBy('createdAt', 'desc')
-                .startAfter(lastVisible)
-                .limit(PRODUCTS_PER_PAGE);
-        }
-        
-        query.get()
-            .then((querySnapshot) => {
-                const newProducts = [];
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    // Ensure price is a number
-                    if (typeof data.price === 'string') {
-                        data.price = parseFloat(data.price);
-                    }
-                    if (data.oldPrice && typeof data.oldPrice === 'string') {
-                        data.oldPrice = parseFloat(data.oldPrice);
-                    }
-                    newProducts.push({ id: doc.id, ...data });
-                });
-                
-                // Update last document for pagination
-                lastVisible = querySnapshot.docs[querySnapshot.docs.length-1];
-                
-                // Check if there are more products
-                if (querySnapshot.size < PRODUCTS_PER_PAGE) {
-                    hasMoreProducts = false;
-                }
-                
-                // Add new products to existing products array
-                products = [...products, ...newProducts];
-                
-                // Display only the new products
-                displayProducts(newProducts, true);
-                
-                isLoading = false;
-                infiniteScrollIndicator.style.display = 'none';
-            })
-            .catch((error) => {
-                console.error("Error loading more products: ", error);
-                isLoading = false;
-                infiniteScrollIndicator.style.display = 'none';
-            });
-    }
-
-    function handleSearchInput(e) {
-        // Clear search if input is empty
-        if (!e.target.value.trim()) {
-            isSearching = false;
-            searchTerm = '';
-            loadInitialProducts();
-        }
-    }
-
-    function handleSearch() {
-        const searchInput = document.getElementById('searchInput');
-        const term = searchInput.value.toLowerCase().trim();
-        
-        if (!term) {
-            isSearching = false;
-            searchTerm = '';
-            loadInitialProducts();
-            return;
-        }
-        
-        isSearching = true;
-        searchTerm = term;
-        productsGrid.innerHTML = '';
-        productsLoading.style.display = 'flex';
-        
-        // Search in Firestore - this is a simple approach
-        // For better search, consider using Algolia or Firebase's own search solutions
-        db.collection('products')
-            .where('active', '==', true)
-            .orderBy('name')
-            .startAt(term)
-            .endAt(term + '\uf8ff')
-            .limit(PRODUCTS_PER_PAGE)
-            .get()
-            .then((querySnapshot) => {
-                products = [];
-                querySnapshot.forEach((doc) => {
-                    const data = doc.data();
-                    // Ensure price is a number
-                    if (typeof data.price === 'string') {
-                        data.price = parseFloat(data.price);
-                    }
-                    if (data.oldPrice && typeof data.oldPrice === 'string') {
-                        data.oldPrice = parseFloat(data.oldPrice);
-                    }
-                    products.push({ id: doc.id, ...data });
-                });
-                
-                // Get last document for pagination
-                lastVisible = querySnapshot.docs[querySnapshot.docs.length-1];
-                
-                // Check if there are more products
-                if (querySnapshot.size < PRODUCTS_PER_PAGE) {
-                    hasMoreProducts = false;
-                } else {
-                    hasMoreProducts = true;
-                }
-                
-                displayProducts(products);
-                productsLoading.style.display = 'none';
-                
-                // Show message if no products found
-                if (products.length === 0) {
-                    noProducts.style.display = 'block';
-                    noProducts.innerHTML = `
-                        <i class="fas fa-search fa-3x mb-3" style="opacity: 0.3;"></i>
-                        <h5>No products found</h5>
-                        <p>Try different search terms</p>
-                    `;
-                }
-            })
-            .catch((error) => {
-                console.error("Error searching products: ", error);
-                productsGrid.innerHTML = '<div class="alert alert-danger">Error searching products</div>';
-                productsLoading.style.display = 'none';
-            });
-    }
-
-    function displayProducts(productsToDisplay, append = false) {
-        if (productsToDisplay.length === 0 && !append) {
-            noProducts.style.display = 'block';
-            productsGrid.style.display = 'none';
-            return;
-        }
-        
-        noProducts.style.display = 'none';
-        productsGrid.style.display = 'grid';
-        
-        if (!append) {
-            productsGrid.innerHTML = '';
-        }
         
         productsToDisplay.forEach(product => {
             const discount = product.oldPrice ? Math.round(((product.oldPrice - product.price) / product.oldPrice) * 100) : 0;
@@ -1865,6 +1761,75 @@
             renderCartItems();
         }
     }
+
+function handleSearch() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+    
+    if (!searchTerm) {
+        // If search is empty, show all products
+        loadInitialProducts();
+        return;
+    }
+    
+    // Show loading state
+    productsGrid.innerHTML = '';
+    productsLoading.style.display = 'flex';
+    noProducts.style.display = 'none';
+    // REMOVE THIS LINE: loadMoreContainer.style.display = 'none';
+    
+    // Search across all products in Firestore
+    db.collection('products')
+        .where('active', '==', true)
+        .orderBy('name')
+        .get()
+        .then((querySnapshot) => {
+            const allProducts = [];
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                // Ensure price is a number
+                if (typeof data.price === 'string') {
+                    data.price = parseFloat(data.price);
+                }
+                if (data.oldPrice && typeof data.oldPrice === 'string') {
+                    data.oldPrice = parseFloat(data.oldPrice);
+                }
+                allProducts.push({ id: doc.id, ...data });
+            });
+            
+            // Filter products based on search term
+            const filteredProducts = allProducts.filter(product => 
+                product.name.toLowerCase().includes(searchTerm) || 
+                (product.description && product.description.toLowerCase().includes(searchTerm))
+            );
+            
+            // Display search results
+            displaySearchResults(filteredProducts, searchTerm);
+            productsLoading.style.display = 'none';
+        })
+        .catch((error) => {
+            console.error("Error searching products: ", error);
+            productsGrid.innerHTML = '<div class="alert alert-danger">Error searching products</div>';
+            productsLoading.style.display = 'none';
+        });
+}
+function displaySearchResults(products, searchTerm) {
+    if (products.length === 0) {
+        noProducts.innerHTML = `
+            <i class="fas fa-search fa-3x mb-3" style="opacity: 0.3;"></i>
+            <h5>No products found</h5>
+            <p>No results for "${searchTerm}"</p>
+        `;
+        noProducts.style.display = 'block';
+        productsGrid.style.display = 'none';
+        return;
+    }
+    
+    noProducts.style.display = 'none';
+    productsGrid.style.display = 'grid';
+    productsGrid.innerHTML = '';
+    
+    displayProducts(products);
+}
 
     function showCheckoutModal() {
         if (cart.length === 0) {

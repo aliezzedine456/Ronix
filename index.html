@@ -1071,7 +1071,7 @@
               <!-- Payment Notice -->
         <div class="payment-notice">
             <i class="fas fa-info-circle"></i>
-            <strong>Payment Information:</strong>We accept only Wish , Omt payments. Payment is first. After clicking "Checkout", we will review your order and contact you via WhatsApp for payment details and further instructions.
+            <strong>Payment Information:</strong>Payment is first. After clicking "Checkout", we will review your order and contact you via WhatsApp for payment details and further instructions.
         </div>
         
         </div>
@@ -1128,7 +1128,10 @@
                             <input type="text" class="form-control" id="deliveryFloor">
                         </div>
                     </div>
-                    
+                    <div class="mb-3">
+    <label for="paymentMethod" class="form-label">Payment Method *</label>
+    <input type="text" class="form-control" id="paymentMethod" required placeholder="e.g., Wish, OMT, ...">
+</div>
                     <div class="mb-3">
                         <label for="deliveryNotes" class="form-label">Additional Notes (optional)</label>
                         <textarea class="form-control" id="deliveryNotes" rows="2"></textarea>
@@ -1241,6 +1244,7 @@
     const imageGalleryDots = document.getElementById('imageGalleryDots');
     const galleryPrev = document.getElementById('galleryPrev');
     const galleryNext = document.getElementById('galleryNext');
+
 
     // Initialize the app
     document.addEventListener('DOMContentLoaded', function() {
@@ -1906,14 +1910,14 @@ function handleLazyLoadScroll() {
         
         checkoutModal.show();
     }
-function handleCheckout() {
+    function handleCheckout() {
     // Show loading state
     const confirmBtn = document.getElementById('confirmOrderBtn');
     confirmBtn.disabled = true;
     confirmBtn.querySelector('.btn-text').style.display = 'none';
     confirmBtn.querySelector('.btn-loading').style.display = 'inline-block';
     
-    // Your existing validation code
+    // Get ALL form values including payment method
     const name = document.getElementById('customerName').value;
     const email = document.getElementById('customerEmail').value;
     const phone = document.getElementById('customerPhone').value;
@@ -1923,7 +1927,7 @@ function handleCheckout() {
     const building = document.getElementById('deliveryBuilding').value;
     const floor = document.getElementById('deliveryFloor').value;
     const notes = document.getElementById('deliveryNotes').value;
-    
+    const paymentMethod = document.getElementById('paymentMethod').value; 
     // Validate required fields
     if (!name || !email || !phone || !city || !area || !street) {
         alert('Please fill in all required fields');
@@ -1954,112 +1958,115 @@ function handleCheckout() {
         `;
     });
     
-    // Create order in Firestore with additional fields
-    db.collection('orders').add({
-        customerName: name,
-        customerEmail: email,
-        customerPhone: phone,
-        deliveryAddress: {
-            city: city,
-            area: area,
-            street: street,
-            building: building || '',
-            floor: floor || ''
-        },
-        deliveryNotes: notes,
-        items: cart,
-        subtotal,
-        deliveryFee,
-        total,
-        status: 'pending',
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    })
-    .then((docRef) => {
-        // Prepare email parameters for CUSTOMER
-        const customerTemplateParams = {
-            to_email: email, // Customer email
-            to_name: name, // Customer name
-            from_name: "Ronix Shop LB",
-            from_email: "ronix.lebanon@gmail.com",
-            reply_to: "ronix.lebanon@gmail.com",
-            customer_name: name,
-            order_id: docRef.id,
-            order_date: new Date().toLocaleDateString(),
-            cart_items: cartItemsHTML,
-            subtotal: `$${subtotal.toFixed(2)}`,
-            delivery_fee: `$${deliveryFee.toFixed(2)}`,
-            total: `$${total.toFixed(2)}`,
-            delivery_address: `${street}, ${area}, ${city}${building ? ', Building: ' + building : ''}${floor ? ', Floor: ' + floor : ''}`,
-            delivery_notes: notes || 'No additional notes'
-        };
-        
-        // Prepare email parameters for SHOP
-        const shopTemplateParams = {
-            to_email: "ronix.lebanon@gmail.com", // Your shop email
-            to_name: "Ronix Shop",
-            from_name: name, // Customer name
-            from_email: email, // Customer email
-            reply_to: email, // Reply to customer
-            customer_name: name,
-            customer_email: email,
-            customer_phone: phone,
-            order_id: docRef.id,
-            order_date: new Date().toLocaleDateString(),
-            cart_items: cartItemsHTML,
-            subtotal: `$${subtotal.toFixed(2)}`,
-            delivery_fee: `$${deliveryFee.toFixed(2)}`,
-            total: `$${total.toFixed(2)}`,
-            delivery_address: `${street}, ${area}, ${city}${building ? ', Building: ' + building : ''}${floor ? ', Floor: ' + floor : ''}`,
-            delivery_notes: notes || 'No additional notes'
-        };
-        
-        // Send email to CUSTOMER using EmailJS
-        emailjs.send('service_7pvxrnq', 'template_xln73ua', customerTemplateParams)
-            .then((response) => {
-                console.log('Customer email sent successfully!', response.status, response.text);
-                
-                // Now send email to SHOP
-                return emailjs.send('service_7pvxrnq', 'template_7nb7y0f', shopTemplateParams);
-            })
-            .then((response) => {
-                confirmBtn.disabled = false;
-        confirmBtn.querySelector('.btn-text').style.display = 'inline-block';
-        confirmBtn.querySelector('.btn-loading').style.display = 'none';
-                console.log('Shop email sent successfully!', response.status, response.text);
+  // Create order in Firestore with additional fields
+db.collection('orders').add({
+    customerName: name,
+    customerEmail: email,
+    customerPhone: phone,
+    paymentMethod: paymentMethod, // ADDED: Payment method field
+    deliveryAddress: {
+        city: city,
+        area: area,
+        street: street,
+        building: building || '',
+        floor: floor || ''
+    },
+    deliveryNotes: notes,
+    items: cart,
+    subtotal,
+    deliveryFee,
+    total,
+    status: 'pending',
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+})
+.then((docRef) => {
+    // Prepare email parameters for CUSTOMER
+    const customerTemplateParams = {
+        to_email: email, // Customer email
+        to_name: name, // Customer name
+        from_name: "Ronix Shop LB",
+        from_email: "ronix.lebanon@gmail.com",
+        reply_to: "ronix.lebanon@gmail.com",
+        customer_name: name,
+        order_id: docRef.id,
+        order_date: new Date().toLocaleDateString(),
+        cart_items: cartItemsHTML,
+        subtotal: `$${subtotal.toFixed(2)}`,
+        delivery_fee: `$${deliveryFee.toFixed(2)}`,
+        total: `$${total.toFixed(2)}`,
+        delivery_address: `${street}, ${area}, ${city}${building ? ', Building: ' + building : ''}${floor ? ', Floor: ' + floor : ''}`,
+        delivery_notes: notes || 'No additional notes',
+        payment_method: paymentMethod // ADDED: Payment method for email
+    };
+    
+    // Prepare email parameters for SHOP
+    const shopTemplateParams = {
+        to_email: "ronix.lebanon@gmail.com", // Your shop email
+        to_name: "Ronix Shop",
+        from_name: name, // Customer name
+        from_email: email, // Customer email
+        reply_to: email, // Reply to customer
+        customer_name: name,
+        customer_email: email,
+        customer_phone: phone,
+        order_id: docRef.id,
+        order_date: new Date().toLocaleDateString(),
+        cart_items: cartItemsHTML,
+        subtotal: `$${subtotal.toFixed(2)}`,
+        delivery_fee: `$${deliveryFee.toFixed(2)}`,
+        total: `$${total.toFixed(2)}`,
+        delivery_address: `${street}, ${area}, ${city}${building ? ', Building: ' + building : ''}${floor ? ', Floor: ' + floor : ''}`,
+        delivery_notes: notes || 'No additional notes',
+        payment_method: paymentMethod // ADDED: Payment method for email
+    };
+    
+    // Send email to CUSTOMER using EmailJS
+    emailjs.send('service_7pvxrnq', 'template_xln73ua', customerTemplateParams)
+        .then((response) => {
+            console.log('Customer email sent successfully!', response.status, response.text);
+            
+            // Now send email to SHOP
+            return emailjs.send('service_7pvxrnq', 'template_7nb7y0f', shopTemplateParams);
+        })
+        .then((response) => {
+            confirmBtn.disabled = false;
+            confirmBtn.querySelector('.btn-text').style.display = 'inline-block';
+            confirmBtn.querySelector('.btn-loading').style.display = 'none';
+            console.log('Shop email sent successfully!', response.status, response.text);
 
-                
-                // Clear cart
-                cart = [];
-                updateCart();
-                
-                // Close modals
-                checkoutModal.hide();
-                toggleCart();
-                
-                // Reset form
-                document.getElementById('checkoutForm').reset();
-                
-                showNotification('Order placed successfully! We will contact you via WhatsApp for payment details. A confirmation email has been sent.');
-            })
-            .catch((error) => {
-                confirmBtn.disabled = false;
-        confirmBtn.querySelector('.btn-text').style.display = 'inline-block';
-        confirmBtn.querySelector('.btn-loading').style.display = 'none';
-                console.error('Email sending failed:', error);
-                // Still complete the order even if email fails
-                cart = [];
-                updateCart();
-                checkoutModal.hide();
-                toggleCart();
-                document.getElementById('checkoutForm').reset();
-                showNotification('Order placed successfully! We will contact you via WhatsApp for payment details. (Email confirmation failed)');
-            });
-    })
-    .catch(error => {
-        console.error("Error placing order: ", error);
-        alert("Error placing order. Please try again.");
-    });
-}
+            // Clear cart
+            cart = [];
+            updateCart();
+            
+            // Close modals
+            checkoutModal.hide();
+            toggleCart();
+            
+            // Reset form
+            document.getElementById('checkoutForm').reset();
+            
+            showNotification('Order placed successfully! We will contact you via WhatsApp for payment details. A confirmation email has been sent.');
+        })
+        .catch((error) => {
+            confirmBtn.disabled = false;
+            confirmBtn.querySelector('.btn-text').style.display = 'inline-block';
+            confirmBtn.querySelector('.btn-loading').style.display = 'none';
+            console.error('Email sending failed:', error);
+            // Still complete the order even if email fails
+            cart = [];
+            updateCart();
+            checkoutModal.hide();
+            toggleCart();
+            document.getElementById('checkoutForm').reset();
+            showNotification('Order placed successfully! We will contact you via WhatsApp for payment details. (Email confirmation failed)');
+        });
+})
+.catch(error => {
+    console.error("Error placing order: ", error);
+    alert("Error placing order. Please try again.");
+});}
+
+
   (function() {
         emailjs.init("N-lESiMwYLTT6GrWd"); 
     })();

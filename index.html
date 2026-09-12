@@ -6077,9 +6077,9 @@ function updateShopHeaderDisplay(shopData) {
     }
 }
 
-   async function loadShopData() {
+   async function loadShopData(prefetchedShopDoc = null) {
     try {
-        const shopDoc = await getDoc(doc(db, 'shops', shopId));
+        const shopDoc = prefetchedShopDoc || await getDoc(doc(db, 'shops', shopId));
         
         if (shopDoc.exists()) {
             shopData = shopDoc.data();
@@ -6761,12 +6761,20 @@ function updateShopHeaderDisplay(shopData) {
 
     async function loadProductsByCategory() {
         const productsRef = collection(db,'products'); products=[];
-        for (const cat of categories) {
+        // Fire off all category product queries in parallel instead of
+        // awaiting them one by one - with N categories this turns N
+        // sequential network round-trips into a single round-trip's worth
+        // of wall-clock time.
+        const results = await Promise.all(categories.map(async (cat) => {
             const q = query(productsRef, where('shopId','==',shopId), where('categoryId','==',cat.id), where('active','==',true), limit(5));
             const snap = await getDocs(q); const catProds=[];
             snap.forEach(d=>{ const data=d.data(); if(data.price) data.price=parseFloat(data.price); catProds.push({id:d.id, ...data}); });
-            products = [...products, ...catProds]; renderCategorySection(cat, catProds);
-        }
+            return { cat, catProds };
+        }));
+        results.forEach(({ cat, catProds }) => {
+            products = [...products, ...catProds];
+            renderCategorySection(cat, catProds);
+        });
         if (products.length===0) { noProducts.style.display='block'; productsGrid.style.display='none'; } else noProducts.style.display='none';
         loadingScreen.classList.add('hidden');
     }
@@ -7905,11 +7913,11 @@ async function showProductDetail(p) {
         }, 150);
     });
 
-    async function checkShopExpiry() {
+    async function checkShopExpiry(prefetchedShopDoc = null) {
         if (!shopId || shopId === 'demoShop') return false;
         
         try {
-            const shopDoc = await getDoc(doc(db, 'shops', shopId));
+            const shopDoc = prefetchedShopDoc || await getDoc(doc(db, 'shops', shopId));
             if (!shopDoc.exists()) {
                 showShopExpiredMessage('Shop not found');
                 return true;
@@ -8109,15 +8117,22 @@ async function showProductDetail(p) {
     loadStoredUser();
 
     (async function init() {
-        const isExpired = await checkShopExpiry();
+        let prefetchedShopDoc = null;
+        if (shopId && shopId !== 'demoShop') {
+            try {
+                prefetchedShopDoc = await getDoc(doc(db, 'shops', shopId));
+            } catch (e) {
+                console.error('Error pre-fetching shop doc:', e);
+            }
+        }
+
+        const isExpired = await checkShopExpiry(prefetchedShopDoc);
         
         if (!isExpired) {
-            await loadShopData();
+            await loadShopData(prefetchedShopDoc);
             updateCartBadge();
-            setTimeout(() => { 
-                if (categories.length===0 && products.length===0) loadAllProducts(); 
-                loadingScreen.classList.add('hidden'); 
-            }, 600);
+            if (categories.length===0 && products.length===0) loadAllProducts();
+            loadingScreen.classList.add('hidden');
         } else {
             loadingScreen.classList.add('hidden');
         }

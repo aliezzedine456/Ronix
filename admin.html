@@ -879,6 +879,16 @@ useManualCoordsBtn.addEventListener('click', () => {
 
 saveStoreLocationBtn.addEventListener('click', async () => {
     const address = storeAddressInput.value.trim();
+
+    // Always take whatever is currently typed in the lat/lng boxes as the
+    // source of truth at save time, so a value typed but not "applied" via
+    // the "Use these coordinates" button still gets saved correctly.
+    const typedLat = parseFloat(manualLatInput.value);
+    const typedLng = parseFloat(manualLngInput.value);
+    if (!isNaN(typedLat) && !isNaN(typedLng) && typedLat >= -90 && typedLat <= 90 && typedLng >= -180 && typedLng <= 180) {
+        storeLocationCoords = { lat: typedLat, lng: typedLng };
+    }
+
     if (!address && !storeLocationCoords) {
         showToast('Enter an address or use "Use my current location" first', 'error');
         return;
@@ -897,6 +907,7 @@ saveStoreLocationBtn.addEventListener('click', async () => {
             storeLocation
         }, { merge: true });
         console.log('[DEBUG] save call completed without error');
+        renderStoreCoordsPreview();
         showToast('Store location saved', 'success');
     } catch (e) {
         console.error('[DEBUG] save failed with error:', e);

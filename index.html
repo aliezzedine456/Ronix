@@ -2518,6 +2518,7 @@
         .ios-row-icon.icon-green { background: #e8faf0; color: #34c759; }
         .ios-row-icon.icon-orange { background: #fff4e5; color: #ff9500; }
         .ios-row-icon.icon-red { background: #ffeceb; color: #ff3b30; }
+        .ios-row-icon.icon-purple { background: #f2ecff; color: #7c4dff; }
 
         .ios-row-label {
             color: var(--text-color);
@@ -2567,6 +2568,35 @@
         .guest-checkout-card .form-control:focus {
             border-color: var(--accent, #4f6d7a); box-shadow: 0 0 0 3px rgba(79,109,122,0.15); outline: none;
         }
+
+        /* ---- Pickup vs Delivery choice (checkout) ---- */
+        .delivery-method-choice {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 2px;
+        }
+        .delivery-method-option {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 8px;
+            border-radius: 12px;
+            border: 1.5px solid rgba(0,0,0,0.1);
+            background: #fff;
+            cursor: pointer;
+            transition: border-color 0.15s ease, background 0.15s ease;
+        }
+        .delivery-method-option i { font-size: 1.05rem; color: var(--gray-500, #6e6e73); }
+        .delivery-method-option .delivery-method-title { font-size: 0.82rem; font-weight: 600; color: var(--text-color); }
+        .delivery-method-option .delivery-method-price { font-size: 0.74rem; color: var(--gray-500, #6e6e73); }
+        .delivery-method-option.active {
+            border-color: #f36c21;
+            background: #fff6ef;
+        }
+        .delivery-method-option.active i,
+        .delivery-method-option.active .delivery-method-title { color: #f36c21; }
         .cart-checkout-bar {
             flex-direction: column;
             align-items: stretch;
@@ -5404,8 +5434,25 @@
                     <input type="tel" class="form-control mb-2" id="checkoutPhoneInput" placeholder="e.g. 71 234 567" inputmode="tel">
                     <label class="checkout-field-label">Email <span class="text-muted" style="font-weight:400;">(optional)</span></label>
                     <input type="email" class="form-control mb-2" id="checkoutEmailInput" placeholder="your@email.com">
-                    <label class="checkout-field-label">Delivery address *</label>
-                    <textarea class="form-control" id="checkoutAddressInput" rows="2" placeholder="Street, building, city, area"></textarea>
+
+                    <label class="checkout-field-label">How would you like to get your order? *</label>
+                    <div class="delivery-method-choice" id="deliveryMethodChoice">
+                        <button type="button" class="delivery-method-option active" id="deliveryMethodPickup" data-method="pickup">
+                            <i class="fas fa-store"></i>
+                            <span class="delivery-method-title">Pick up from shop</span>
+                            <span class="delivery-method-price">Free</span>
+                        </button>
+                        <button type="button" class="delivery-method-option" id="deliveryMethodDelivery" data-method="delivery">
+                            <i class="fas fa-truck"></i>
+                            <span class="delivery-method-title">Delivery</span>
+                            <span class="delivery-method-price">+$5.00</span>
+                        </button>
+                    </div>
+
+                    <div id="checkoutAddressField">
+                        <label class="checkout-field-label">Delivery address *</label>
+                        <textarea class="form-control" id="checkoutAddressInput" rows="2" placeholder="Street, building, city, area"></textarea>
+                    </div>
                 </div>
                 <button type="button" class="btn-dark w-100 mt-3" id="checkoutContinueBtn">Continue</button>
             </div>
@@ -5425,7 +5472,11 @@
                         <div class="ios-row-icon icon-orange"><i class="fas fa-envelope"></i></div>
                         <span class="ios-row-label" id="checkoutEmail">-</span>
                     </div>
-                    <div class="ios-row">
+                    <div class="ios-row" id="checkoutMethodRow">
+                        <div class="ios-row-icon icon-purple"><i class="fas fa-truck"></i></div>
+                        <span class="ios-row-label" id="checkoutMethod">-</span>
+                    </div>
+                    <div class="ios-row" id="checkoutAddressRow">
                         <div class="ios-row-icon icon-red"><i class="fas fa-map-marker-alt"></i></div>
                         <span class="ios-row-label" id="checkoutAddress">-</span>
                     </div>
@@ -6025,9 +6076,13 @@ function updateShopHeaderDisplay(shopData) {
         lines.push(`Name: ${order.customer?.name || ''}`);
         if (order.customer?.phone) lines.push(`Phone: ${order.customer.phone}`);
         lines.push('');
-        lines.push('📍 *Delivery Location*');
-        lines.push(location.text);
-        if (location.mapUrl) lines.push(location.mapUrl);
+        if (order.deliveryMethod === 'delivery') {
+            lines.push('📍 *Delivery Location*');
+            lines.push(location.text);
+            if (location.mapUrl) lines.push(location.mapUrl);
+        } else {
+            lines.push('🏬 *Pick up from shop*');
+        }
         lines.push('');
         lines.push('Please confirm my order, thank you! 🙏');
 
@@ -6059,8 +6114,32 @@ function updateShopHeaderDisplay(shopData) {
     const checkoutPhoneInput = document.getElementById('checkoutPhoneInput');
     const checkoutEmailInput = document.getElementById('checkoutEmailInput');
     const checkoutAddressInput = document.getElementById('checkoutAddressInput');
+    const checkoutAddressField = document.getElementById('checkoutAddressField');
     const checkoutContinueBtn = document.getElementById('checkoutContinueBtn');
     const checkoutEditBtn = document.getElementById('checkoutEditBtn');
+    const checkoutMethod = document.getElementById('checkoutMethod');
+    const checkoutAddressRow = document.getElementById('checkoutAddressRow');
+    const deliveryMethodPickupBtn = document.getElementById('deliveryMethodPickup');
+    const deliveryMethodDeliveryBtn = document.getElementById('deliveryMethodDelivery');
+
+    // ---------- Pickup vs Delivery (+$5) ----------
+    const DELIVERY_FEE = 5;
+    let selectedDeliveryMethod = 'pickup';
+    function getDeliveryFeeForMethod(method) {
+        return method === 'delivery' ? DELIVERY_FEE : 0;
+    }
+    function setDeliveryMethod(method) {
+        selectedDeliveryMethod = method;
+        if (deliveryMethodPickupBtn) deliveryMethodPickupBtn.classList.toggle('active', method === 'pickup');
+        if (deliveryMethodDeliveryBtn) deliveryMethodDeliveryBtn.classList.toggle('active', method === 'delivery');
+        if (checkoutAddressField) checkoutAddressField.style.display = (method === 'delivery') ? 'block' : 'none';
+        // Re-render just the items/summary/total - renderCartItems() no
+        // longer touches the form fields or step visibility, so calling it
+        // again here is safe and won't wipe out anything the guest typed.
+        if (typeof renderCartItems === 'function') renderCartItems();
+    }
+    if (deliveryMethodPickupBtn) deliveryMethodPickupBtn.addEventListener('click', () => setDeliveryMethod('pickup'));
+    if (deliveryMethodDeliveryBtn) deliveryMethodDeliveryBtn.addEventListener('click', () => setDeliveryMethod('delivery'));
 
     function showCheckoutFormStep() {
         if (checkoutFormStep) checkoutFormStep.style.display = 'block';
@@ -6074,10 +6153,11 @@ function updateShopHeaderDisplay(shopData) {
             const phone = (checkoutPhoneInput?.value || '').trim();
             const email = (checkoutEmailInput?.value || '').trim();
             const address = (checkoutAddressInput?.value || '').trim();
+            const needsAddress = selectedDeliveryMethod === 'delivery';
 
             if (!name) { showToast('Please enter your name', 'warning', 'Name Required'); checkoutNameInput?.focus(); return; }
             if (!phone) { showToast('Please enter your phone number', 'warning', 'Phone Required'); checkoutPhoneInput?.focus(); return; }
-            if (!address) { showToast('Please enter your delivery address', 'warning', 'Address Required'); checkoutAddressInput?.focus(); return; }
+            if (needsAddress && !address) { showToast('Please enter your delivery address', 'warning', 'Address Required'); checkoutAddressInput?.focus(); return; }
 
             userProfile.name = name;
             userProfile.phone = phone;
@@ -6088,7 +6168,11 @@ function updateShopHeaderDisplay(shopData) {
             checkoutName.innerText = name;
             checkoutPhone.innerText = phone;
             checkoutEmail.innerText = email || '-';
-            checkoutAddress.innerText = address;
+            if (checkoutMethod) {
+                checkoutMethod.innerText = needsAddress ? 'Delivery (+$' + DELIVERY_FEE.toFixed(2) + ')' : 'Pick up from shop (Free)';
+            }
+            if (checkoutAddressRow) checkoutAddressRow.style.display = needsAddress ? 'flex' : 'none';
+            checkoutAddress.innerText = address || '-';
 
             checkoutFormStep.style.display = 'none';
             checkoutConfirmStep.style.display = 'block';
@@ -6108,7 +6192,7 @@ function updateShopHeaderDisplay(shopData) {
             return;
         }
         
-        const hasAddress = userProfile.address && userProfile.address.trim() !== '';
+        const hasAddress = selectedDeliveryMethod !== 'delivery' || (userProfile.address && userProfile.address.trim() !== '');
         const hasContact = userProfile.name && userProfile.name.trim() !== '' && userProfile.phone && userProfile.phone.trim() !== '';
         
         if (!hasAddress || !hasContact) {
@@ -6155,7 +6239,7 @@ function updateShopHeaderDisplay(shopData) {
             placeOrderBtn.innerHTML = '<span class="btn-spinner"></span> Placing Order...';
             
             const subtotal = cart.reduce((acc, i) => acc + (i.price * (i.quantity || 1)), 0);
-            const deliveryFee = window.currentDeliveryFee || calculateDeliveryFee(subtotal);
+            const deliveryFee = getDeliveryFeeForMethod(selectedDeliveryMethod);
             const total = subtotal + deliveryFee;
             
             const order = {
@@ -6178,12 +6262,13 @@ function updateShopHeaderDisplay(shopData) {
                 })),
                 subtotal: subtotal,
                 deliveryFee: deliveryFee,
+                deliveryMethod: selectedDeliveryMethod,
                 total: total,
                 customer: {
                     name: userProfile.name,
                     phone: userProfile.phone,
                     email: userProfile.email,
-                    address: userProfile.address || ''
+                    address: selectedDeliveryMethod === 'delivery' ? (userProfile.address || '') : ''
                 },
                 shopId: shopId,
                 shopOwnerEmail: shopOwnerEmail,
@@ -6278,18 +6363,6 @@ function updateShopHeaderDisplay(shopData) {
             placeOrderBtn.innerHTML = '<i class="fas fa-check-circle me-2"></i> Place Order';
         }
     });
-
-    function calculateDeliveryFee(subtotal) {
-        if (!shopData || !shopData.delivery || !shopData.delivery.enabled) {
-            return 0;
-        }
-        
-        if (shopData.delivery.freeThreshold && subtotal >= shopData.delivery.freeThreshold) {
-            return 0;
-        }
-        
-        return shopData.delivery.charge || 0;
-    }
 
     // ---------- Load Orders for User ----------
     // Small glyph + accent per status, used for the leading icon on each
@@ -7349,8 +7422,46 @@ async function showProductDetail(p) {
     }
 }
     function openCart() { 
-        renderCartItems(); 
+        applyCheckoutDefaults();
         openPanel(cartPanel); 
+    }
+
+    // Runs once per cart-panel open: seeds the guest-details form from any
+    // previously saved profile, resets the delivery-method choice back to
+    // Pickup, and decides which checkout step to land on. Kept separate
+    // from renderCartItems() (which re-runs on every qty +/- and on every
+    // delivery-method toggle) so those don't stomp on what the guest is
+    // mid-typing.
+    function applyCheckoutDefaults() {
+        setDeliveryMethod('pickup');
+
+        if (userProfile) {
+            if (checkoutNameInput) checkoutNameInput.value = userProfile.name || '';
+            if (checkoutPhoneInput) checkoutPhoneInput.value = userProfile.phone || '';
+            if (checkoutEmailInput) checkoutEmailInput.value = userProfile.email || '';
+            if (checkoutAddressInput) checkoutAddressInput.value = userProfile.address || '';
+            checkoutName.innerText = userProfile.name || '-';
+            checkoutPhone.innerText = userProfile.phone || '-';
+            checkoutEmail.innerText = userProfile.email || '-';
+            checkoutAddress.innerText = userProfile.address || 'Not set';
+        }
+
+        // If we already have a saved name/phone (returning guest on this
+        // device), skip straight to the confirm step; otherwise start on
+        // the fill-in-your-details step. Address is no longer required to
+        // count as "already has details", since it only applies to Delivery.
+        const alreadyHasDetails = userProfile && userProfile.name && userProfile.phone;
+        if (alreadyHasDetails && checkoutFormStep && checkoutConfirmStep) {
+            if (checkoutMethod) checkoutMethod.innerText = 'Pick up from shop (Free)';
+            if (checkoutAddressRow) checkoutAddressRow.style.display = 'none';
+            checkoutFormStep.style.display = 'none';
+            checkoutConfirmStep.style.display = 'block';
+            placeOrderBtn.style.display = 'flex';
+        } else if (checkoutFormStep && checkoutConfirmStep) {
+            checkoutFormStep.style.display = 'block';
+            checkoutConfirmStep.style.display = 'none';
+            placeOrderBtn.style.display = 'none';
+        }
     }
 
    function renderCartItems() {
@@ -7456,34 +7567,18 @@ async function showProductDetail(p) {
             `; 
         });
         
-        const deliveryFee = calculateDeliveryFee(subtotal);
+        const deliveryFee = getDeliveryFeeForMethod(selectedDeliveryMethod);
         const total = subtotal + deliveryFee;
         
-        let deliveryRowHtml = '';
-        if (shopData && shopData.delivery && shopData.delivery.enabled) {
-            if (deliveryFee === 0 && shopData.delivery.freeThreshold && subtotal >= shopData.delivery.freeThreshold) {
-                deliveryRowHtml = `
-                    <div class="ios-row cart-summary-row">
-                        <span class="ios-row-label"><i class="fas fa-truck me-1"></i> Delivery</span>
-                        <span class="ios-row-value text-success">FREE</span>
-                    </div>`;
-            } else if (deliveryFee > 0) {
-                deliveryRowHtml = `
-                    <div class="ios-row cart-summary-row">
-                        <span class="ios-row-label"><i class="fas fa-truck me-1"></i> Delivery</span>
-                        <span class="ios-row-value">$${deliveryFee.toFixed(2)}</span>
-                    </div>`;
-                if (shopData.delivery.freeThreshold) {
-                    const remaining = shopData.delivery.freeThreshold - subtotal;
-                    if (remaining > 0) {
-                        deliveryRowHtml += `
-                            <div class="cart-free-delivery-hint">
-                                Add $${remaining.toFixed(2)} more for free delivery
-                            </div>`;
-                    }
-                }
-            }
-        }
+        const deliveryRowHtml = selectedDeliveryMethod === 'delivery' ? `
+            <div class="ios-row cart-summary-row">
+                <span class="ios-row-label"><i class="fas fa-truck me-1"></i> Delivery</span>
+                <span class="ios-row-value">$${deliveryFee.toFixed(2)}</span>
+            </div>` : `
+            <div class="ios-row cart-summary-row">
+                <span class="ios-row-label"><i class="fas fa-store me-1"></i> Pickup from shop</span>
+                <span class="ios-row-value text-success">FREE</span>
+            </div>`;
         
         html += `
             <div class="ios-group-card cart-summary-card">
@@ -7504,31 +7599,7 @@ async function showProductDetail(p) {
         
         window.currentDeliveryFee = deliveryFee;
         
-        if (userProfile) {
-            if (checkoutNameInput) checkoutNameInput.value = userProfile.name || '';
-            if (checkoutPhoneInput) checkoutPhoneInput.value = userProfile.phone || '';
-            if (checkoutEmailInput) checkoutEmailInput.value = userProfile.email || '';
-            if (checkoutAddressInput) checkoutAddressInput.value = userProfile.address || '';
-            checkoutName.innerText = userProfile.name || '-';
-            checkoutPhone.innerText = userProfile.phone || '-';
-            checkoutEmail.innerText = userProfile.email || '-';
-            checkoutAddress.innerText = userProfile.address || 'Not set';
-        }
-        
         checkoutSection.style.display = 'block';
-        // If we already have a saved name/phone/address (returning guest on
-        // this device), skip straight to the confirm step; otherwise start
-        // on the fill-in-your-details step.
-        const alreadyHasDetails = userProfile && userProfile.name && userProfile.phone && userProfile.address;
-        if (alreadyHasDetails && checkoutFormStep && checkoutConfirmStep) {
-            checkoutFormStep.style.display = 'none';
-            checkoutConfirmStep.style.display = 'block';
-            placeOrderBtn.style.display = 'flex';
-        } else if (checkoutFormStep && checkoutConfirmStep) {
-            checkoutFormStep.style.display = 'block';
-            checkoutConfirmStep.style.display = 'none';
-            placeOrderBtn.style.display = 'none';
-        }
         
         container.querySelectorAll('.cart-item-remove').forEach(btn => btn.addEventListener('click', (e) => { 
             e.stopPropagation();

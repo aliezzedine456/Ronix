@@ -727,6 +727,14 @@ const storeCoordsText = document.getElementById('storeCoordsText');
 const saveStoreLocationBtn = document.getElementById('saveStoreLocationBtn');
 let storeLocationCoords = null; // { lat, lng }
 
+// Fallback location pre-filled below if the shop hasn't saved one in
+// Firestore yet (converted from 33°22'37.2"N 35°22'52.2"E).
+const DEFAULT_STORE_LOCATION = {
+    address: '33°22\'37.2"N 35°22\'52.2"E',
+    lat: 33.377000,
+    lng: 35.381167
+};
+
 function renderStoreCoordsPreview() {
     if (storeLocationCoords) {
         storeCoordsPreview.style.display = 'block';
@@ -747,13 +755,20 @@ async function loadStoreLocationSettings() {
             const data = snap.data();
             const loc = data.storeLocation || null;
             console.log('[DEBUG] loaded storeLocation from Firestore for shopId=' + shopId + ':', loc);
-            storeAddressInput.value = (loc && loc.address) || '';
-            storeLocationCoords = (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number')
-                ? { lat: loc.lat, lng: loc.lng, accuracy: (typeof loc.accuracy === 'number' ? loc.accuracy : undefined) }
-                : null;
+            if (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number') {
+                storeAddressInput.value = loc.address || '';
+                storeLocationCoords = { lat: loc.lat, lng: loc.lng, accuracy: (typeof loc.accuracy === 'number' ? loc.accuracy : undefined) };
+            } else {
+                // Nothing saved yet — pre-fill with the default so it's ready to save.
+                storeAddressInput.value = DEFAULT_STORE_LOCATION.address;
+                storeLocationCoords = { lat: DEFAULT_STORE_LOCATION.lat, lng: DEFAULT_STORE_LOCATION.lng };
+            }
             renderStoreCoordsPreview();
         } else {
             console.log('[DEBUG] shop document does not exist for shopId=' + shopId);
+            storeAddressInput.value = DEFAULT_STORE_LOCATION.address;
+            storeLocationCoords = { lat: DEFAULT_STORE_LOCATION.lat, lng: DEFAULT_STORE_LOCATION.lng };
+            renderStoreCoordsPreview();
         }
     } catch (e) {
         console.error('[DEBUG] error loading store location:', e);

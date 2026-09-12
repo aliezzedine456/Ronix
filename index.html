@@ -798,6 +798,39 @@
     transform: scale(0.97);
 }
 
+.shop-contact-location-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    max-width: 360px;
+    margin: 0;
+    background: #1a73e8;
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    padding: 13px 18px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.2s ease;
+}
+
+.shop-contact-location-btn i {
+    font-size: 1rem;
+    color: #fff;
+}
+
+.shop-contact-location-btn:hover {
+    background: #1558b0;
+    color: #fff;
+}
+
+.shop-contact-location-btn:active {
+    transform: scale(0.97);
+}
+
 /* Empty favorites styling */
 .empty-favorites {
     text-align: center;
@@ -5412,6 +5445,10 @@
             <i class="fas fa-map-marker-alt"></i>
             <span id="shopContactAddressText">-</span>
         </div>
+
+        <a href="#" target="_blank" rel="noopener" class="shop-contact-location-btn" id="shopContactLocationBtn" style="display:none;">
+            <i class="fas fa-map-location-dot"></i> View store location
+        </a>
     </div>
 </div>
 
@@ -6032,31 +6069,6 @@ function updateShopHeaderDisplay(shopData) {
 
    async function loadShopData() {
     try {
-        if (shopId === 'demoShop') {
-            shopData = {
-                name: 'Demo Shop',
-                subtitle: 'Welcome to our store',
-                bannerImage: '',
-                ownerPhone: '+96176647488', // demo WhatsApp number
-                instagram: null,
-                tiktok: null,
-                delivery: {
-                    enabled: false,
-                    charge: 0,
-                    freeThreshold: null
-                }
-            };
-            
-            updateShopHeaderDisplay(shopData);
-            
-            bannerTitle.innerText = shopData.name || 'Shop';
-            bannerSubtitle.innerText = shopData.subtitle || '';
-            if (typeof updateShopContactFooter === 'function') updateShopContactFooter();
-            
-            await loadCategories();
-            return;
-        }
-        
         const shopDoc = await getDoc(doc(db, 'shops', shopId));
         
         if (shopDoc.exists()) {
@@ -6280,6 +6292,7 @@ function updateShopHeaderDisplay(shopData) {
         const phoneText = document.getElementById('shopContactPhoneText');
         const addressRow = document.getElementById('shopContactAddressRow');
         const addressText = document.getElementById('shopContactAddressText');
+        const locationBtn = document.getElementById('shopContactLocationBtn');
         if (!whatsappBtn) return;
 
         const rawNumber = (shopData && (shopData.checkoutWhatsapp || shopData.ownerPhone)) || '+96176647488';
@@ -6291,22 +6304,27 @@ function updateShopHeaderDisplay(shopData) {
             phoneRow.style.display = 'flex';
         }
 
+        const loc = shopData && shopData.storeLocation;
+        const hasCoords = loc && typeof loc.lat === 'number' && typeof loc.lng === 'number';
+        const hasAddress = loc && loc.address;
+
         if (addressRow && addressText) {
-            const loc = shopData && shopData.storeLocation;
-            const hasCoords = loc && typeof loc.lat === 'number' && typeof loc.lng === 'number';
-            const hasAddress = loc && loc.address;
-            if (hasCoords || hasAddress) {
-                addressText.innerText = hasAddress ? loc.address : 'View our store location on the map';
+            if (hasAddress) {
+                addressText.innerText = loc.address;
                 addressRow.style.display = 'flex';
-                addressRow.style.cursor = 'pointer';
-                addressRow.onclick = () => {
-                    const url = hasCoords
-                        ? `https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lng}`
-                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`;
-                    window.open(url, '_blank');
-                };
             } else {
                 addressRow.style.display = 'none';
+            }
+        }
+
+        if (locationBtn) {
+            if (hasCoords || hasAddress) {
+                locationBtn.style.display = 'flex';
+                locationBtn.href = hasCoords
+                    ? `https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lng}`
+                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`;
+            } else {
+                locationBtn.style.display = 'none';
             }
         }
     }

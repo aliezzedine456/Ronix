@@ -730,6 +730,74 @@
 .view-map-btn.blue {
     background: var(--accent);
 }
+
+/* Shop contact footer: sits at the very end of the shop page, below the
+   product grid/categories, with a WhatsApp button that opens a chat
+   directly and (when the owner has set one) a button to the store's map
+   location. */
+.shop-contact-footer {
+    margin-top: 28px;
+    padding: 24px 18px 32px;
+    border-top: 1px solid var(--gray-200);
+    text-align: left;
+}
+
+.shop-contact-footer-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin-bottom: 16px;
+}
+
+.shop-contact-info-row {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--primary-color);
+    margin-bottom: 14px;
+}
+
+.shop-contact-info-row i {
+    color: var(--accent, var(--primary-color));
+    font-size: 0.9rem;
+    width: 16px;
+    text-align: center;
+}
+
+.shop-contact-whatsapp-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    max-width: 360px;
+    margin: 0 0 14px;
+    background: #25D366;
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    padding: 13px 18px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 0.15s ease, background 0.2s ease;
+}
+
+.shop-contact-whatsapp-btn i {
+    font-size: 1.15rem;
+}
+
+.shop-contact-whatsapp-btn:hover {
+    background: #1ebe59;
+    color: #fff;
+}
+
+.shop-contact-whatsapp-btn:active {
+    transform: scale(0.97);
+}
+
 /* Empty favorites styling */
 .empty-favorites {
     text-align: center;
@@ -5323,6 +5391,28 @@
     
     <div class="products-loading loader-wrap" id="productsLoading" style="display:none"><div class="circular-loader"></div></div>
     <div class="no-products text-center py-5" id="noProducts" style="display:none"><i class="fas fa-box-open fa-3x"></i><h5>No products</h5></div>
+
+    <!-- CONTACT FOOTER: shown at the very bottom of the shop, below every
+         product/category. Order is: phone number, then the WhatsApp
+         button (opens a chat directly, no extra taps), then the store
+         address - each row hidden automatically if that info isn't set. -->
+    <div class="shop-contact-footer" id="shopContactFooter">
+        <div class="shop-contact-footer-title">Contact us</div>
+
+        <div class="shop-contact-info-row" id="shopContactPhoneRow" style="display:none;">
+            <i class="fas fa-phone"></i>
+            <span id="shopContactPhoneText">-</span>
+        </div>
+
+        <a href="https://wa.me/96176647488" target="_blank" rel="noopener" class="shop-contact-whatsapp-btn" id="shopContactWhatsappBtn">
+            <i class="fab fa-whatsapp"></i> Chat with us on WhatsApp
+        </a>
+
+        <div class="shop-contact-info-row" id="shopContactAddressRow" style="display:none;">
+            <i class="fas fa-map-marker-alt"></i>
+            <span id="shopContactAddressText">-</span>
+        </div>
+    </div>
 </div>
 
 <!-- PRODUCT DETAIL PANEL -->
@@ -5452,6 +5542,21 @@
                     <div id="checkoutAddressField">
                         <label class="checkout-field-label">Delivery address *</label>
                         <textarea class="form-control" id="checkoutAddressInput" rows="2" placeholder="Street, building, city, area"></textarea>
+                    </div>
+
+                    <!-- Shown only when "Pick up from shop" is selected: the
+                         store's own location, with a button to open it on
+                         the map. Hidden entirely if the shop hasn't set a
+                         store location yet. -->
+                    <div id="pickupLocationInfo" style="display:none;">
+                        <label class="checkout-field-label">Store location</label>
+                        <div class="ios-row" style="background:var(--gray-100); border-radius:12px; padding:12px 14px;">
+                            <div class="ios-row-icon icon-blue"><i class="fas fa-store"></i></div>
+                            <span class="ios-row-label" id="pickupStoreAddressText">-</span>
+                        </div>
+                        <button type="button" class="view-map-btn mt-2" id="showPickupMapBtn" style="width:100%; justify-content:center; padding:10px 14px;">
+                            <i class="fas fa-map-location-dot"></i> Show on map
+                        </button>
                     </div>
                 </div>
                 <button type="button" class="btn-dark w-100 mt-3" id="checkoutContinueBtn">Continue</button>
@@ -5945,6 +6050,7 @@ function updateShopHeaderDisplay(shopData) {
             
             bannerTitle.innerText = shopData.name || 'Shop';
             bannerSubtitle.innerText = shopData.subtitle || '';
+            if (typeof updateShopContactFooter === 'function') updateShopContactFooter();
             
             await loadCategories();
             return;
@@ -5963,6 +6069,8 @@ function updateShopHeaderDisplay(shopData) {
             
             bannerTitle.innerText = shopData.name || 'Shop';
             bannerSubtitle.innerText = shopData.subtitle || '';
+            if (typeof updatePickupLocationUI === 'function') updatePickupLocationUI();
+            if (typeof updateShopContactFooter === 'function') updateShopContactFooter();
             
             await loadCategories();
         } else {
@@ -6121,6 +6229,9 @@ function updateShopHeaderDisplay(shopData) {
     const checkoutAddressRow = document.getElementById('checkoutAddressRow');
     const deliveryMethodPickupBtn = document.getElementById('deliveryMethodPickup');
     const deliveryMethodDeliveryBtn = document.getElementById('deliveryMethodDelivery');
+    const pickupLocationInfo = document.getElementById('pickupLocationInfo');
+    const pickupStoreAddressText = document.getElementById('pickupStoreAddressText');
+    const showPickupMapBtn = document.getElementById('showPickupMapBtn');
 
     // ---------- Pickup vs Delivery (+$5) ----------
     const DELIVERY_FEE = 5;
@@ -6128,11 +6239,82 @@ function updateShopHeaderDisplay(shopData) {
     function getDeliveryFeeForMethod(method) {
         return method === 'delivery' ? DELIVERY_FEE : 0;
     }
+
+    // Fills in and reveals the "Store location" card (with its "Show on
+    // map" button) when the shop owner has set a storeLocation in the
+    // admin panel. If nothing has been set yet, the whole card stays
+    // hidden rather than showing an empty/broken block.
+    function updatePickupLocationUI() {
+        if (!pickupLocationInfo) return;
+        const loc = shopData && shopData.storeLocation;
+        const hasCoords = loc && typeof loc.lat === 'number' && typeof loc.lng === 'number';
+        const hasAddress = loc && loc.address;
+        const showPickupCard = selectedDeliveryMethod === 'pickup' && (hasCoords || hasAddress);
+
+        pickupLocationInfo.style.display = showPickupCard ? 'block' : 'none';
+        if (!showPickupCard) return;
+
+        if (pickupStoreAddressText) {
+            pickupStoreAddressText.innerText = hasAddress ? loc.address : 'View our store location on the map';
+        }
+        if (showPickupMapBtn) {
+            showPickupMapBtn.style.display = (hasCoords || hasAddress) ? 'inline-flex' : 'none';
+            showPickupMapBtn.onclick = () => {
+                const url = hasCoords
+                    ? `https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lng}`
+                    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`;
+                window.open(url, '_blank');
+            };
+        }
+    }
+
+    // Fills in the bottom-of-shop contact block: phone number row, the
+    // WhatsApp button (always points at the shop's own number, falling
+    // back to the hard-coded default), and the store address row - each
+    // row only shows up once that info is actually set.
+    function updateShopContactFooter() {
+        const whatsappBtn = document.getElementById('shopContactWhatsappBtn');
+        const phoneRow = document.getElementById('shopContactPhoneRow');
+        const phoneText = document.getElementById('shopContactPhoneText');
+        const addressRow = document.getElementById('shopContactAddressRow');
+        const addressText = document.getElementById('shopContactAddressText');
+        if (!whatsappBtn) return;
+
+        const rawNumber = (shopData && (shopData.checkoutWhatsapp || shopData.ownerPhone)) || '+96176647488';
+        const digitsOnly = String(rawNumber).replace(/[^0-9]/g, '');
+        whatsappBtn.href = `https://wa.me/${digitsOnly}`;
+
+        if (phoneRow && phoneText) {
+            phoneText.innerText = rawNumber;
+            phoneRow.style.display = 'flex';
+        }
+
+        if (addressRow && addressText) {
+            const loc = shopData && shopData.storeLocation;
+            const hasCoords = loc && typeof loc.lat === 'number' && typeof loc.lng === 'number';
+            const hasAddress = loc && loc.address;
+            if (hasCoords || hasAddress) {
+                addressText.innerText = hasAddress ? loc.address : 'View our store location on the map';
+                addressRow.style.display = 'flex';
+                addressRow.style.cursor = 'pointer';
+                addressRow.onclick = () => {
+                    const url = hasCoords
+                        ? `https://www.google.com/maps/search/?api=1&query=${loc.lat},${loc.lng}`
+                        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(loc.address)}`;
+                    window.open(url, '_blank');
+                };
+            } else {
+                addressRow.style.display = 'none';
+            }
+        }
+    }
+
     function setDeliveryMethod(method) {
         selectedDeliveryMethod = method;
         if (deliveryMethodPickupBtn) deliveryMethodPickupBtn.classList.toggle('active', method === 'pickup');
         if (deliveryMethodDeliveryBtn) deliveryMethodDeliveryBtn.classList.toggle('active', method === 'delivery');
         if (checkoutAddressField) checkoutAddressField.style.display = (method === 'delivery') ? 'block' : 'none';
+        updatePickupLocationUI();
         // Re-render just the items/summary/total - renderCartItems() no
         // longer touches the form fields or step visibility, so calling it
         // again here is safe and won't wipe out anything the guest typed.

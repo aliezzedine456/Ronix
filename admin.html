@@ -1,0 +1,1006 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Shop Admin</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+<style>
+    :root {
+        --accent: #4f6d7a;
+        --accent-dark: #3d5762;
+        --dark: #1c1c1e;
+        --gray-100: #f2f2f5;
+        --gray-200: #e5e5ea;
+        --gray-500: #8e8e93;
+        --danger: #ff3b30;
+        --success: #34c759;
+        --warning: #ff9500;
+        --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: var(--gray-100);
+        color: var(--dark);
+    }
+
+    /* ---------- Login gate ---------- */
+    #loginScreen {
+        min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+    }
+    .login-card {
+        background: #fff; border-radius: 18px; padding: 32px 28px; width: 100%; max-width: 360px;
+        box-shadow: 0 20px 50px -20px rgba(0,0,0,0.25);
+        text-align: center;
+    }
+    .login-card i.fa-toolbox { font-size: 34px; color: var(--accent); margin-bottom: 10px; }
+    .login-card h1 { font-size: 1.3rem; margin: 0 0 4px; }
+    .login-card p { color: var(--gray-500); font-size: 0.85rem; margin: 0 0 20px; }
+    .field-label { display:block; text-align:left; font-size:0.78rem; font-weight:600; color:var(--gray-500); margin: 12px 0 4px; text-transform: uppercase; letter-spacing:0.02em; }
+    input, select, textarea {
+        width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--gray-200);
+        font-size: 0.95rem; background: #fff; color: var(--dark); font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,109,122,0.15); }
+    .btn {
+        display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+        padding: 11px 18px; border-radius: 10px; border: none; font-weight: 600; font-size: 0.92rem;
+        cursor: pointer; transition: filter 0.15s ease, transform 0.1s ease;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: var(--accent); color: #fff; width: 100%; margin-top: 18px; }
+    .btn-primary:hover { filter: brightness(1.06); }
+    .btn-outline { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+    .btn-danger { background: rgba(255,59,48,0.1); color: var(--danger); }
+    .btn-sm { padding: 6px 10px; font-size: 0.8rem; border-radius: 8px; }
+    #loginError { color: var(--danger); font-size: 0.82rem; margin-top: 10px; display:none; }
+
+    /* ---------- App shell ---------- */
+    #app { display: none; min-height: 100vh; }
+    .topbar {
+        position: sticky; top: 0; z-index: 20;
+        background: #fff; border-bottom: 1px solid var(--gray-200);
+        padding: 14px 20px; display: flex; align-items: center; justify-content: space-between;
+        flex-wrap: wrap; gap: 10px;
+    }
+    .topbar-brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.1rem; }
+    .topbar-brand i { color: var(--accent); }
+    .tabs { display: flex; gap: 6px; background: var(--gray-100); padding: 4px; border-radius: 12px; }
+    .tab-btn {
+        border: none; background: transparent; padding: 8px 16px; border-radius: 9px; font-weight: 600;
+        font-size: 0.88rem; color: var(--gray-500); cursor: pointer;
+    }
+    .tab-btn.active { background: #fff; color: var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px 20px 60px; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 10px; }
+    .section-header h2 { margin: 0; font-size: 1.3rem; }
+    .stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 12px; margin-bottom: 20px; }
+    .stat-card { background: #fff; border-radius: var(--radius); padding: 16px; border: 1px solid var(--gray-200); }
+    .stat-card .num { font-size: 1.6rem; font-weight: 800; }
+    .stat-card .label { font-size: 0.78rem; color: var(--gray-500); font-weight: 600; text-transform: uppercase; }
+
+    /* ---------- Table (grid) ---------- */
+    .table-card { background: #fff; border-radius: var(--radius); border: 1px solid var(--gray-200); overflow: hidden; }
+    table.grid-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .grid-table th {
+        text-align: left; padding: 12px 14px; background: var(--gray-100); color: var(--gray-500);
+        font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; font-weight: 700;
+        border-bottom: 1px solid var(--gray-200); white-space: nowrap;
+    }
+    .grid-table td { padding: 10px 14px; border-bottom: 1px solid var(--gray-200); vertical-align: middle; }
+    .grid-table tr:last-child td { border-bottom: none; }
+    .grid-table tr:hover td { background: rgba(0,0,0,0.015); }
+    .prod-thumb { width: 42px; height: 42px; border-radius: 8px; object-fit: cover; background: var(--gray-100); flex-shrink:0; }
+    .prod-name-cell { display: flex; align-items: center; gap: 10px; }
+    .badge { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 0.72rem; font-weight: 700; }
+    .badge-green { background: rgba(52,199,89,0.12); color: #248a3d; }
+    .badge-red { background: rgba(255,59,48,0.12); color: var(--danger); }
+    .badge-orange { background: rgba(255,149,0,0.12); color: #b06a00; }
+    .badge-gray { background: var(--gray-100); color: var(--gray-500); }
+    .row-actions { display: flex; gap: 6px; }
+    .icon-btn {
+        border: none; background: var(--gray-100); width: 30px; height: 30px; border-radius: 8px;
+        display: inline-flex; align-items: center; justify-content: center; cursor: pointer; color: var(--dark);
+    }
+    .icon-btn:hover { background: var(--gray-200); }
+    .icon-btn.danger:hover { background: rgba(255,59,48,0.12); color: var(--danger); }
+    .empty-state { text-align: center; padding: 50px 20px; color: var(--gray-500); }
+    .empty-state i { font-size: 32px; margin-bottom: 10px; display: block; }
+
+    /* ---------- Modal ---------- */
+    .modal-overlay {
+        display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+        align-items: flex-start; justify-content: center; z-index: 100; overflow-y: auto; padding: 30px 16px;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal-card { background: #fff; border-radius: 16px; width: 100%; max-width: 640px; padding: 24px; }
+    .modal-card h3 { margin: 0 0 4px; }
+    .modal-sub { color: var(--gray-500); font-size: 0.85rem; margin: 0 0 18px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+    .form-grid .full { grid-column: 1 / -1; }
+    .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+
+    /* ---------- Specs table editor (the "product details grid") ---------- */
+    .specs-editor { border: 1px solid var(--gray-200); border-radius: 10px; overflow: hidden; margin-top: 4px; }
+    .specs-editor-row { display: grid; grid-template-columns: 1fr 1fr 34px; gap: 8px; padding: 8px; border-bottom: 1px solid var(--gray-200); }
+    .specs-editor-row:last-child { border-bottom: none; }
+    .specs-editor-row input { padding: 7px 9px; font-size: 0.85rem; }
+    .specs-remove-btn { border: none; background: rgba(255,59,48,0.1); color: var(--danger); border-radius: 8px; cursor: pointer; }
+    .specs-add-btn { width: 100%; padding: 8px; border: 1px dashed var(--gray-200); background: #fff; border-radius: 8px; color: var(--accent); font-weight: 600; font-size: 0.82rem; cursor: pointer; margin-top: 8px; }
+
+    /* ---------- Multi-image uploader ---------- */
+    .image-uploader { margin-top: 4px; }
+    .image-thumb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 8px; margin-bottom: 10px; }
+    .image-thumb-grid:empty { display: none; }
+    .image-thumb { position: relative; width: 100%; aspect-ratio: 1/1; border-radius: 10px; overflow: hidden; border: 1px solid var(--gray-200); background: var(--gray-100); }
+    .image-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .image-thumb .image-thumb-main-badge { position: absolute; bottom: 3px; left: 3px; background: rgba(0,0,0,0.6); color: #fff; font-size: 0.58rem; font-weight: 700; padding: 2px 6px; border-radius: 6px; text-transform: uppercase; letter-spacing: 0.02em; }
+    .image-thumb .image-thumb-remove { position: absolute; top: 3px; right: 3px; width: 20px; height: 20px; border-radius: 50%; background: rgba(0,0,0,0.55); color: #fff; border: none; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; cursor: pointer; }
+    .image-thumb.uploading::after { content: ''; position: absolute; inset: 0; background: rgba(255,255,255,0.6); }
+    .image-thumb .image-thumb-spinner { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 1; color: var(--accent); font-size: 1rem; }
+    .image-upload-btn { display: flex; align-items: center; justify-content: center; gap: 8px; border: 1.5px dashed var(--gray-200); border-radius: 10px; padding: 14px; color: var(--accent); font-weight: 600; font-size: 0.86rem; cursor: pointer; background: #fafbfc; transition: border-color 0.15s ease, background 0.15s ease; }
+    .image-upload-btn:hover { border-color: var(--accent); background: #f4f7f8; }
+    .image-upload-hint { font-size: 0.74rem; color: var(--gray-500); margin: 6px 0 0; }
+
+    .toast-container { position: fixed; top: 16px; right: 16px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+    .toast { background: var(--dark); color: #fff; padding: 12px 16px; border-radius: 10px; font-size: 0.85rem; box-shadow: 0 8px 24px rgba(0,0,0,0.2); min-width: 200px; }
+    .toast.success { background: #1f7a3a; }
+    .toast.error { background: #a02622; }
+
+    @media (max-width: 640px) {
+        .form-grid { grid-template-columns: 1fr; }
+        .tabs { width: 100%; justify-content: stretch; }
+        .tab-btn { flex: 1; }
+        .grid-table { font-size: 0.8rem; }
+        .grid-table th, .grid-table td { padding: 8px 8px; }
+    }
+</style>
+</head>
+<body>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<!-- ===================== LOGIN GATE ===================== -->
+<div id="loginScreen">
+    <div class="login-card">
+        <i class="fas fa-toolbox"></i>
+        <h1>Shop Admin</h1>
+        <p>Sign in with your shop owner account to manage products and orders.</p>
+        <label class="field-label">Email</label>
+        <input type="email" id="loginEmail" placeholder="owner@example.com">
+        <label class="field-label">Password</label>
+        <input type="password" id="loginPassword" placeholder="••••••••">
+        <button class="btn btn-primary" id="loginBtn"><i class="fas fa-right-to-bracket"></i> Sign in</button>
+        <div id="loginError"></div>
+    </div>
+</div>
+
+<!-- ===================== ADMIN APP ===================== -->
+<div id="app">
+    <div class="topbar">
+        <div class="topbar-brand"><i class="fas fa-toolbox"></i> <span id="shopNameLabel">Shop Admin</span></div>
+        <div class="tabs">
+            <button class="tab-btn active" id="tabProductsBtn"><i class="fas fa-box"></i> Products</button>
+            <button class="tab-btn" id="tabOrdersBtn"><i class="fas fa-receipt"></i> Orders</button>
+            <button class="tab-btn" id="tabSettingsBtn"><i class="fas fa-gear"></i> Settings</button>
+        </div>
+        <button class="btn btn-outline btn-sm" id="logoutBtn"><i class="fas fa-arrow-right-from-bracket"></i> Sign out</button>
+    </div>
+
+    <div class="container">
+
+        <!-- ---------------- PRODUCTS TAB ---------------- -->
+        <div id="productsTab">
+            <div class="stat-row">
+                <div class="stat-card"><div class="num" id="statProductCount">0</div><div class="label">Products</div></div>
+                <div class="stat-card"><div class="num" id="statOutOfStock">0</div><div class="label">Out of stock</div></div>
+                <div class="stat-card"><div class="num" id="statActive">0</div><div class="label">Active</div></div>
+            </div>
+            <div class="section-header">
+                <h2>Products</h2>
+                <button class="btn btn-primary" style="margin:0; width:auto;" id="addProductBtn"><i class="fas fa-plus"></i> Add product</button>
+            </div>
+            <div class="table-card">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Category</th>
+                            <th>Price</th>
+                            <th>Stock</th>
+                            <th>Status</th>
+                            <th>Specs</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="productsTableBody"></tbody>
+                </table>
+                <div class="empty-state" id="productsEmptyState" style="display:none;">
+                    <i class="fas fa-box-open"></i>
+                    No products yet — add your first one.
+                </div>
+            </div>
+        </div>
+
+        <!-- ---------------- ORDERS TAB ---------------- -->
+        <div id="ordersTab" style="display:none;">
+            <div class="stat-row">
+                <div class="stat-card"><div class="num" id="statOrderCount">0</div><div class="label">Orders</div></div>
+                <div class="stat-card"><div class="num" id="statPending">0</div><div class="label">Pending</div></div>
+                <div class="stat-card"><div class="num" id="statRevenue">$0</div><div class="label">Total revenue</div></div>
+            </div>
+            <div class="section-header"><h2>Orders</h2></div>
+            <div class="table-card">
+                <table class="grid-table">
+                    <thead>
+                        <tr>
+                            <th>Order</th>
+                            <th>Customer</th>
+                            <th>Method</th>
+                            <th>Address</th>
+                            <th>Items</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th>Placed</th>
+                        </tr>
+                    </thead>
+                    <tbody id="ordersTableBody"></tbody>
+                </table>
+                <div class="empty-state" id="ordersEmptyState" style="display:none;">
+                    <i class="fas fa-receipt"></i>
+                    No orders yet.
+                </div>
+            </div>
+        </div>
+
+        <!-- ---------------- SETTINGS TAB ---------------- -->
+        <div id="settingsTab" style="display:none;">
+            <div class="section-header"><h2>Shop banner</h2></div>
+            <div class="table-card" style="padding: 20px;">
+                <p style="color: var(--gray-500); font-size: 0.85rem; margin: 0 0 14px;">
+                    This is the hero image shown at the top of your storefront's homepage.
+                </p>
+                <div class="image-uploader" id="bannerUploader">
+                    <div class="image-thumb-grid" id="bannerThumbGrid" style="grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));"></div>
+                    <label class="image-upload-btn" for="bannerImageFile">
+                        <i class="fas fa-cloud-arrow-up"></i>
+                        <span id="bannerUploadBtnLabel">Upload banner</span>
+                        <input type="file" id="bannerImageFile" accept="image/*" hidden>
+                    </label>
+                    <p class="image-upload-hint">Pick a wide photo (landscape works best) — it uploads and shows on the storefront automatically.</p>
+                </div>
+                <label class="field-label" style="margin-top:18px;">
+                    <input type="checkbox" id="bannerEnabledCheckbox" checked style="width:auto; margin-right:6px;">
+                    Show banner on storefront
+                </label>
+            </div>
+
+            <div class="section-header" style="margin-top:24px;"><h2>Store location</h2></div>
+            <div class="table-card" style="padding: 20px;">
+                <p style="color: var(--gray-500); font-size: 0.85rem; margin: 0 0 14px;">
+                    Set where your physical store is. Customers who choose "Pick up from shop" at
+                    checkout will see this location with a button to open it in Google Maps.
+                </p>
+
+                <label class="field-label">Store address (shown to customers)</label>
+                <input type="text" id="storeAddressInput" placeholder="e.g. Main Street, Baabda, Beirut">
+
+                <button type="button" class="btn btn-outline" id="useMyLocationBtn" style="margin-top:12px;">
+                    <i class="fas fa-location-crosshairs"></i> Use my current location
+                </button>
+                <p id="storeLocationStatus" style="color: var(--gray-500); font-size: 0.8rem; margin: 8px 0 0;"></p>
+
+                <div id="storeCoordsPreview" style="display:none; margin-top:14px; padding:12px 14px; background:var(--gray-100); border-radius:10px; font-size:0.85rem; color:var(--dark);">
+                    <i class="fas fa-map-pin" style="color:var(--accent);"></i>
+                    <span id="storeCoordsText"></span>
+                </div>
+
+                <button type="button" class="btn btn-primary" id="saveStoreLocationBtn" style="margin-top:16px; width:auto; padding-left:22px; padding-right:22px;">
+                    <i class="fas fa-check"></i> Save store location
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+<!-- ===================== PRODUCT MODAL ===================== -->
+<div class="modal-overlay" id="productModal">
+    <div class="modal-card">
+        <h3 id="productModalTitle">Add product</h3>
+        <p class="modal-sub">Basic info plus a specs table shown as a grid on the product page.</p>
+
+        <div class="form-grid">
+            <div class="full">
+                <label class="field-label">Name *</label>
+                <input type="text" id="pName" placeholder="e.g. Ronix Cordless Drill 20V">
+            </div>
+            <div>
+                <label class="field-label">Price *</label>
+                <input type="number" id="pPrice" step="0.01" placeholder="49.99">
+            </div>
+            <div>
+                <label class="field-label">Old price (optional)</label>
+                <input type="number" id="pOldPrice" step="0.01" placeholder="59.99">
+            </div>
+            <div>
+                <label class="field-label">Stock</label>
+                <input type="number" id="pStock" placeholder="20">
+            </div>
+            <div>
+                <label class="field-label">Category name</label>
+                <input type="text" id="pCategory" placeholder="Drills">
+            </div>
+            <div>
+                <label class="field-label">Rating (0–5, optional)</label>
+                <input type="number" id="pRating" step="0.1" min="0" max="5" placeholder="e.g. 4.5">
+            </div>
+            <div>
+                <label class="field-label"># of ratings (optional)</label>
+                <input type="number" id="pRatingCount" min="0" placeholder="e.g. 12">
+            </div>
+            <div class="full">
+                <label class="field-label">Images</label>
+                <div class="image-uploader" id="imageUploader">
+                    <div class="image-thumb-grid" id="imageThumbGrid"></div>
+                    <label class="image-upload-btn" for="pImageFile">
+                        <i class="fas fa-cloud-arrow-up"></i>
+                        <span>Upload images</span>
+                        <input type="file" id="pImageFile" accept="image/*" multiple hidden>
+                    </label>
+                    <p class="image-upload-hint">Pick one or more photos — they upload automatically, no link needed. The first image is used as the main photo.</p>
+                </div>
+            </div>
+            <div class="full">
+                <label class="field-label">Description</label>
+                <textarea id="pDescription" rows="3" placeholder="Short product description"></textarea>
+            </div>
+            <div class="full">
+                <label class="field-label">Active</label>
+                <select id="pActive">
+                    <option value="true">Active (visible in shop)</option>
+                    <option value="false">Hidden</option>
+                </select>
+            </div>
+            <div class="full">
+                <label class="field-label">Specifications (shown as a table on the product page)</label>
+                <div class="specs-editor" id="specsEditor"></div>
+                <button type="button" class="specs-add-btn" id="addSpecRowBtn"><i class="fas fa-plus"></i> Add spec row</button>
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-outline" id="cancelProductBtn">Cancel</button>
+            <button class="btn btn-primary" style="margin:0; width:auto;" id="saveProductBtn"><i class="fas fa-check"></i> Save product</button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
+import {
+    getFirestore, collection, query, where, getDocs, doc, getDoc,
+    addDoc, updateDoc, deleteDoc, orderBy, onSnapshot, setDoc
+} from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
+import {
+    getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged,
+    setPersistence, browserLocalPersistence
+} from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
+import {
+    getStorage, ref, uploadBytes, getDownloadURL
+} from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js';
+
+// Same Firebase project the storefront (index.html) uses.
+const firebaseConfig = {
+    apiKey: "AIzaSyCfzWZEAq7rjpnXfjznTOJ25skrStZ4FHY",
+    authDomain: "shop-management-1.firebaseapp.com",
+    projectId: "shop-management-1",
+    storageBucket: "shop-management-1.firebasestorage.app",
+    messagingSenderId: "154721959797",
+    appId: "1:154721959797:web:e9c79c83f28d70c68fdd3c"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+const storage = getStorage(app);
+setPersistence(auth, browserLocalPersistence).catch(() => {});
+
+// Same ?id= convention the storefront uses, so this admin page manages
+// exactly the products/orders that belong to that one shop.
+const shopId = new URLSearchParams(window.location.search).get('id') || 'demoShop';
+
+let products = [];
+let orders = [];
+let editingProductId = null;
+// Working list of image URLs for the product currently open in the modal —
+// populated from the product's imageUrls on edit, appended to as uploads
+// finish, and written back into imageUrls/imageUrl on save.
+let currentImages = [];
+
+// ---------- Toast ----------
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    const el = document.createElement('div');
+    el.className = `toast ${type}`;
+    el.textContent = message;
+    container.appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text == null ? '' : String(text);
+    return div.innerHTML;
+}
+
+// ---------- Auth ----------
+const loginScreen = document.getElementById('loginScreen');
+const appEl = document.getElementById('app');
+const loginError = document.getElementById('loginError');
+
+document.getElementById('loginBtn').addEventListener('click', async () => {
+    const email = document.getElementById('loginEmail').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    loginError.style.display = 'none';
+    if (!email || !password) {
+        loginError.textContent = 'Please enter both email and password.';
+        loginError.style.display = 'block';
+        return;
+    }
+    try {
+        await signInWithEmailAndPassword(auth, email, password);
+    } catch (e) {
+        loginError.textContent = 'Sign-in failed: ' + (e.message || 'check your email/password.');
+        loginError.style.display = 'block';
+    }
+});
+
+document.getElementById('logoutBtn').addEventListener('click', () => signOut(auth));
+
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        loginScreen.style.display = 'none';
+        appEl.style.display = 'block';
+        document.getElementById('shopNameLabel').textContent = 'Shop Admin — ' + shopId;
+        loadProducts();
+        loadOrders();
+        loadBannerSettings();
+        loadStoreLocationSettings();
+    } else {
+        loginScreen.style.display = 'flex';
+        appEl.style.display = 'none';
+    }
+});
+
+// ---------- Tabs ----------
+const tabProductsBtn = document.getElementById('tabProductsBtn');
+const tabOrdersBtn = document.getElementById('tabOrdersBtn');
+const tabSettingsBtn = document.getElementById('tabSettingsBtn');
+const productsTab = document.getElementById('productsTab');
+const ordersTab = document.getElementById('ordersTab');
+const settingsTab = document.getElementById('settingsTab');
+function showTab(tab) {
+    [tabProductsBtn, tabOrdersBtn, tabSettingsBtn].forEach(b => b.classList.remove('active'));
+    [productsTab, ordersTab, settingsTab].forEach(t => t.style.display = 'none');
+    if (tab === 'products') { tabProductsBtn.classList.add('active'); productsTab.style.display = 'block'; }
+    else if (tab === 'orders') { tabOrdersBtn.classList.add('active'); ordersTab.style.display = 'block'; }
+    else { tabSettingsBtn.classList.add('active'); settingsTab.style.display = 'block'; }
+}
+tabProductsBtn.addEventListener('click', () => showTab('products'));
+tabOrdersBtn.addEventListener('click', () => showTab('orders'));
+tabSettingsBtn.addEventListener('click', () => showTab('settings'));
+
+// ---------- Products: load + render ----------
+async function loadProducts() {
+    try {
+        const q = query(collection(db, 'products'), where('shopId', '==', shopId));
+        onSnapshot(q, (snap) => {
+            products = [];
+            snap.forEach(d => products.push({ id: d.id, ...d.data() }));
+            renderProducts();
+        });
+    } catch (e) {
+        console.error(e);
+        showToast('Error loading products', 'error');
+    }
+}
+
+function renderProducts() {
+    const tbody = document.getElementById('productsTableBody');
+    const empty = document.getElementById('productsEmptyState');
+
+    document.getElementById('statProductCount').textContent = products.length;
+    document.getElementById('statOutOfStock').textContent = products.filter(p => p.stock === 0).length;
+    document.getElementById('statActive').textContent = products.filter(p => p.active !== false).length;
+
+    if (!products.length) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+
+    tbody.innerHTML = products.map(p => {
+        const img = (p.imageUrls && p.imageUrls[0]) || p.imageUrl || 'https://placehold.co/60';
+        const specCount = Array.isArray(p.specs) ? p.specs.length : (p.specs && typeof p.specs === 'object' ? Object.keys(p.specs).length : 0);
+        const stockBadge = p.stock === 0
+            ? '<span class="badge badge-red">Out of stock</span>'
+            : (p.stock !== undefined && p.stock !== null && p.stock < 5
+                ? `<span class="badge badge-orange">${p.stock} left</span>`
+                : `<span class="badge badge-gray">${p.stock ?? '—'}</span>`);
+        const activeBadge = p.active === false
+            ? '<span class="badge badge-gray">Hidden</span>'
+            : '<span class="badge badge-green">Active</span>';
+        return `
+            <tr data-id="${p.id}">
+                <td>
+                    <div class="prod-name-cell">
+                        <img class="prod-thumb" src="${img}" onerror="this.src='https://placehold.co/60'">
+                        <span>${escapeHtml(p.name || 'Untitled')}</span>
+                    </div>
+                </td>
+                <td>${escapeHtml(p.categoryName || '—')}</td>
+                <td>$${(p.price || 0).toFixed(2)}${p.oldPrice ? ` <span style="color:var(--gray-500); text-decoration:line-through; font-size:0.78rem;">$${p.oldPrice.toFixed(2)}</span>` : ''}</td>
+                <td>${stockBadge}</td>
+                <td>${activeBadge}</td>
+                <td>${specCount ? `<span class="badge badge-gray">${specCount} fields</span>` : '<span style="color:var(--gray-500);">—</span>'}</td>
+                <td>
+                    <div class="row-actions">
+                        <button class="icon-btn edit-product-btn" data-id="${p.id}" title="Edit"><i class="fas fa-pen"></i></button>
+                        <button class="icon-btn danger delete-product-btn" data-id="${p.id}" title="Delete"><i class="fas fa-trash"></i></button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    tbody.querySelectorAll('.edit-product-btn').forEach(btn => {
+        btn.addEventListener('click', () => openProductModal(btn.dataset.id));
+    });
+    tbody.querySelectorAll('.delete-product-btn').forEach(btn => {
+        btn.addEventListener('click', () => deleteProduct(btn.dataset.id));
+    });
+}
+
+async function deleteProduct(id) {
+    if (!confirm('Delete this product? This cannot be undone.')) return;
+    try {
+        await deleteDoc(doc(db, 'products', id));
+        showToast('Product deleted', 'success');
+    } catch (e) {
+        console.error(e);
+        showToast('Error deleting product', 'error');
+    }
+}
+
+// ---------- Product modal + specs editor ----------
+const productModal = document.getElementById('productModal');
+const specsEditor = document.getElementById('specsEditor');
+
+function addSpecRow(key = '', value = '') {
+    const row = document.createElement('div');
+    row.className = 'specs-editor-row';
+    row.innerHTML = `
+        <input type="text" class="spec-key" placeholder="e.g. Chuck size" value="${escapeHtml(key)}">
+        <input type="text" class="spec-value" placeholder="e.g. 13mm" value="${escapeHtml(value)}">
+        <button type="button" class="specs-remove-btn" title="Remove"><i class="fas fa-xmark"></i></button>
+    `;
+    row.querySelector('.specs-remove-btn').addEventListener('click', () => row.remove());
+    specsEditor.appendChild(row);
+}
+
+document.getElementById('addSpecRowBtn').addEventListener('click', () => addSpecRow());
+
+// ---------- Multi-image uploader ----------
+const imageThumbGrid = document.getElementById('imageThumbGrid');
+const pImageFile = document.getElementById('pImageFile');
+
+function renderImageThumbs() {
+    imageThumbGrid.innerHTML = currentImages.map((url, i) => `
+        <div class="image-thumb" data-index="${i}">
+            <img src="${url}" alt="Product image ${i + 1}">
+            ${i === 0 ? '<span class="image-thumb-main-badge">Main</span>' : ''}
+            <button type="button" class="image-thumb-remove" title="Remove"><i class="fas fa-xmark"></i></button>
+        </div>
+    `).join('');
+    imageThumbGrid.querySelectorAll('.image-thumb-remove').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const idx = parseInt(btn.closest('.image-thumb').dataset.index, 10);
+            currentImages.splice(idx, 1);
+            renderImageThumbs();
+        });
+    });
+}
+
+// Uploads a single file straight to Firebase Storage and drops a placeholder
+// thumbnail in the grid while it's in flight, so picking several photos at
+// once still gives immediate feedback per-file instead of one big wait.
+async function uploadProductImage(file) {
+    const placeholder = document.createElement('div');
+    placeholder.className = 'image-thumb uploading';
+    placeholder.innerHTML = '<div class="image-thumb-spinner"><i class="fas fa-spinner fa-spin"></i></div>';
+    imageThumbGrid.appendChild(placeholder);
+
+    try {
+        const path = `shops/${shopId}/products/${Date.now()}_${Math.random().toString(36).slice(2)}_${file.name}`;
+        const storageRef = ref(storage, path);
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
+        currentImages.push(url);
+        renderImageThumbs();
+    } catch (e) {
+        console.error(e);
+        showToast(`Couldn't upload ${file.name}`, 'error');
+        placeholder.remove();
+    }
+}
+
+pImageFile.addEventListener('change', async () => {
+    const files = Array.from(pImageFile.files || []);
+    pImageFile.value = ''; // allow re-selecting the same file later
+    for (const file of files) {
+        await uploadProductImage(file);
+    }
+});
+
+// ---------- Shop banner (Settings tab) ----------
+const bannerThumbGrid = document.getElementById('bannerThumbGrid');
+const bannerImageFile = document.getElementById('bannerImageFile');
+const bannerUploadBtnLabel = document.getElementById('bannerUploadBtnLabel');
+const bannerEnabledCheckbox = document.getElementById('bannerEnabledCheckbox');
+let bannerUrl = '';
+
+function renderBannerThumb() {
+    if (!bannerUrl) { bannerThumbGrid.innerHTML = ''; bannerUploadBtnLabel.textContent = 'Upload banner'; return; }
+    bannerThumbGrid.innerHTML = `
+        <div class="image-thumb" style="aspect-ratio: 16/7;">
+            <img src="${bannerUrl}" alt="Shop banner">
+            <button type="button" class="image-thumb-remove" title="Remove"><i class="fas fa-xmark"></i></button>
+        </div>
+    `;
+    bannerUploadBtnLabel.textContent = 'Replace banner';
+    bannerThumbGrid.querySelector('.image-thumb-remove').addEventListener('click', async () => {
+        bannerUrl = '';
+        renderBannerThumb();
+        await saveBannerSettings();
+    });
+}
+
+async function saveBannerSettings() {
+    try {
+        await setDoc(doc(db, 'shops', shopId), {
+            bannerUrl,
+            bannerEnabled: bannerEnabledCheckbox.checked
+        }, { merge: true });
+        showToast('Banner settings saved', 'success');
+    } catch (e) {
+        console.error(e);
+        showToast('Error saving banner settings', 'error');
+    }
+}
+
+async function loadBannerSettings() {
+    try {
+        const snap = await getDoc(doc(db, 'shops', shopId));
+        if (snap.exists()) {
+            const data = snap.data();
+            bannerUrl = data.bannerUrl || data.bannerImage || '';
+            bannerEnabledCheckbox.checked = data.bannerEnabled !== false;
+        }
+        renderBannerThumb();
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+bannerImageFile.addEventListener('change', async () => {
+    const file = bannerImageFile.files && bannerImageFile.files[0];
+    bannerImageFile.value = '';
+    if (!file) return;
+
+    bannerThumbGrid.innerHTML = '<div class="image-thumb uploading" style="aspect-ratio: 16/7;"><div class="image-thumb-spinner"><i class="fas fa-spinner fa-spin"></i></div></div>';
+    try {
+        const path = `shops/${shopId}/banner/${Date.now()}_${file.name}`;
+        const storageRef = ref(storage, path);
+        await uploadBytes(storageRef, file);
+        bannerUrl = await getDownloadURL(storageRef);
+        renderBannerThumb();
+        await saveBannerSettings();
+    } catch (e) {
+        console.error(e);
+        showToast(`Couldn't upload banner`, 'error');
+        renderBannerThumb();
+    }
+});
+
+bannerEnabledCheckbox.addEventListener('change', saveBannerSettings);
+
+// ---------- Store location (Settings tab) ----------
+const storeAddressInput = document.getElementById('storeAddressInput');
+const useMyLocationBtn = document.getElementById('useMyLocationBtn');
+const storeLocationStatus = document.getElementById('storeLocationStatus');
+const storeCoordsPreview = document.getElementById('storeCoordsPreview');
+const storeCoordsText = document.getElementById('storeCoordsText');
+const saveStoreLocationBtn = document.getElementById('saveStoreLocationBtn');
+let storeLocationCoords = null; // { lat, lng }
+
+function renderStoreCoordsPreview() {
+    if (storeLocationCoords) {
+        storeCoordsPreview.style.display = 'block';
+        storeCoordsText.textContent = `Saved coordinates: ${storeLocationCoords.lat.toFixed(6)}, ${storeLocationCoords.lng.toFixed(6)}`;
+    } else {
+        storeCoordsPreview.style.display = 'none';
+        storeCoordsText.textContent = '';
+    }
+}
+
+async function loadStoreLocationSettings() {
+    try {
+        const snap = await getDoc(doc(db, 'shops', shopId));
+        if (snap.exists()) {
+            const data = snap.data();
+            const loc = data.storeLocation || null;
+            storeAddressInput.value = (loc && loc.address) || '';
+            storeLocationCoords = (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number')
+                ? { lat: loc.lat, lng: loc.lng }
+                : null;
+            renderStoreCoordsPreview();
+        }
+    } catch (e) {
+        console.error(e);
+    }
+}
+
+// Automatically grabs the device's current position via the browser
+// Geolocation API and fills in the coordinates - no manual lat/lng typing
+// needed. The admin still types a human-readable address label separately.
+useMyLocationBtn.addEventListener('click', () => {
+    if (!navigator.geolocation) {
+        storeLocationStatus.textContent = 'Geolocation is not supported by this browser.';
+        return;
+    }
+    useMyLocationBtn.disabled = true;
+    storeLocationStatus.textContent = 'Detecting your current location...';
+    navigator.geolocation.getCurrentPosition(
+        (position) => {
+            storeLocationCoords = {
+                lat: position.coords.latitude,
+                lng: position.coords.longitude
+            };
+            renderStoreCoordsPreview();
+            storeLocationStatus.textContent = 'Location detected. Don\'t forget to click "Save store location".';
+            useMyLocationBtn.disabled = false;
+        },
+        (error) => {
+            console.error(error);
+            storeLocationStatus.textContent = 'Could not get your location. Please allow location access and try again.';
+            useMyLocationBtn.disabled = false;
+        },
+        { enableHighAccuracy: true, timeout: 12000 }
+    );
+});
+
+saveStoreLocationBtn.addEventListener('click', async () => {
+    const address = storeAddressInput.value.trim();
+    if (!address && !storeLocationCoords) {
+        showToast('Enter an address or use "Use my current location" first', 'error');
+        return;
+    }
+    try {
+        const storeLocation = { address };
+        if (storeLocationCoords) {
+            storeLocation.lat = storeLocationCoords.lat;
+            storeLocation.lng = storeLocationCoords.lng;
+        }
+        await setDoc(doc(db, 'shops', shopId), {
+            storeLocation
+        }, { merge: true });
+        showToast('Store location saved', 'success');
+    } catch (e) {
+        console.error(e);
+        showToast('Error saving store location', 'error');
+    }
+});
+
+function openProductModal(id = null) {
+    editingProductId = id;
+    specsEditor.innerHTML = '';
+    currentImages = [];
+
+    if (id) {
+        const p = products.find(x => x.id === id);
+        if (!p) return;
+        document.getElementById('productModalTitle').textContent = 'Edit product';
+        document.getElementById('pName').value = p.name || '';
+        document.getElementById('pPrice').value = p.price ?? '';
+        document.getElementById('pOldPrice').value = p.oldPrice ?? '';
+        document.getElementById('pStock').value = p.stock ?? '';
+        document.getElementById('pCategory').value = p.categoryName || '';
+        document.getElementById('pRating').value = (typeof p.rating === 'number') ? p.rating : '';
+        document.getElementById('pRatingCount').value = (p.ratingCount ?? p.reviewCount ?? '');
+        currentImages = (p.imageUrls && p.imageUrls.length) ? [...p.imageUrls] : (p.imageUrl ? [p.imageUrl] : []);
+        document.getElementById('pDescription').value = p.description || '';
+        document.getElementById('pActive').value = p.active === false ? 'false' : 'true';
+
+        let specs = [];
+        if (Array.isArray(p.specs)) specs = p.specs.map(s => [s.key || s.label || '', s.value || '']);
+        else if (p.specs && typeof p.specs === 'object') specs = Object.entries(p.specs);
+        if (!specs.length) specs = [['', '']];
+        specs.forEach(([k, v]) => addSpecRow(k, v));
+    } else {
+        document.getElementById('productModalTitle').textContent = 'Add product';
+        document.getElementById('pName').value = '';
+        document.getElementById('pPrice').value = '';
+        document.getElementById('pOldPrice').value = '';
+        document.getElementById('pStock').value = '';
+        document.getElementById('pCategory').value = '';
+        document.getElementById('pRating').value = '';
+        document.getElementById('pRatingCount').value = '';
+        document.getElementById('pDescription').value = '';
+        document.getElementById('pActive').value = 'true';
+        addSpecRow();
+    }
+    renderImageThumbs();
+    productModal.classList.add('show');
+}
+
+function closeProductModal() {
+    productModal.classList.remove('show');
+    editingProductId = null;
+}
+
+document.getElementById('addProductBtn').addEventListener('click', () => openProductModal(null));
+document.getElementById('cancelProductBtn').addEventListener('click', closeProductModal);
+productModal.addEventListener('click', (e) => { if (e.target === productModal) closeProductModal(); });
+
+document.getElementById('saveProductBtn').addEventListener('click', async () => {
+    const name = document.getElementById('pName').value.trim();
+    const price = parseFloat(document.getElementById('pPrice').value);
+    if (!name) { showToast('Please enter a product name', 'error'); return; }
+    if (isNaN(price)) { showToast('Please enter a valid price', 'error'); return; }
+
+    const oldPriceRaw = document.getElementById('pOldPrice').value;
+    const stockRaw = document.getElementById('pStock').value;
+    const ratingRaw = document.getElementById('pRating').value;
+    const ratingCountRaw = document.getElementById('pRatingCount').value;
+
+    if (ratingRaw !== '' && (isNaN(parseFloat(ratingRaw)) || parseFloat(ratingRaw) < 0 || parseFloat(ratingRaw) > 5)) {
+        showToast('Rating must be a number between 0 and 5', 'error');
+        return;
+    }
+
+    const specs = Array.from(specsEditor.querySelectorAll('.specs-editor-row')).map(row => ({
+        key: row.querySelector('.spec-key').value.trim(),
+        value: row.querySelector('.spec-value').value.trim()
+    })).filter(s => s.key && s.value);
+
+    const data = {
+        shopId,
+        name,
+        price,
+        oldPrice: oldPriceRaw ? parseFloat(oldPriceRaw) : null,
+        stock: stockRaw !== '' ? parseInt(stockRaw, 10) : null,
+        categoryName: document.getElementById('pCategory').value.trim(),
+        rating: ratingRaw !== '' ? Math.round(parseFloat(ratingRaw) * 10) / 10 : null,
+        ratingCount: ratingCountRaw !== '' ? parseInt(ratingCountRaw, 10) : null,
+        imageUrl: currentImages[0] || '',
+        imageUrls: [...currentImages],
+        description: document.getElementById('pDescription').value.trim(),
+        active: document.getElementById('pActive').value === 'true',
+        specs,
+        updatedAt: new Date().toISOString()
+    };
+
+    try {
+        if (editingProductId) {
+            await updateDoc(doc(db, 'products', editingProductId), data);
+            showToast('Product updated', 'success');
+        } else {
+            data.createdAt = new Date().toISOString();
+            await addDoc(collection(db, 'products'), data);
+            showToast('Product added', 'success');
+        }
+        closeProductModal();
+    } catch (e) {
+        console.error(e);
+        showToast('Error saving product', 'error');
+    }
+});
+
+// ---------- Orders: load + render ----------
+async function loadOrders() {
+    try {
+        const q = query(collection(db, 'orders'), where('shopId', '==', shopId), orderBy('createdAt', 'desc'));
+        onSnapshot(q, (snap) => {
+            orders = [];
+            snap.forEach(d => orders.push({ id: d.id, ...d.data() }));
+            renderOrders();
+        }, (err) => {
+            // orderBy needs an index sometimes; fall back to unordered query
+            console.warn('Falling back to unordered orders query:', err.message);
+            const q2 = query(collection(db, 'orders'), where('shopId', '==', shopId));
+            onSnapshot(q2, (snap2) => {
+                orders = [];
+                snap2.forEach(d => orders.push({ id: d.id, ...d.data() }));
+                orders.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+                renderOrders();
+            });
+        });
+    } catch (e) {
+        console.error(e);
+        showToast('Error loading orders', 'error');
+    }
+}
+
+const STATUS_OPTIONS = ['accepted', 'preparing', 'out_for_delivery', 'delivered', 'cancelled'];
+
+function renderOrders() {
+    const tbody = document.getElementById('ordersTableBody');
+    const empty = document.getElementById('ordersEmptyState');
+
+    document.getElementById('statOrderCount').textContent = orders.length;
+    document.getElementById('statPending').textContent = orders.filter(o => o.status !== 'delivered' && o.status !== 'cancelled').length;
+    const revenue = orders.filter(o => o.status !== 'cancelled').reduce((acc, o) => acc + (o.total || 0), 0);
+    document.getElementById('statRevenue').textContent = `$${revenue.toFixed(2)}`;
+
+    if (!orders.length) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+        return;
+    }
+    empty.style.display = 'none';
+
+    tbody.innerHTML = orders.map(o => {
+        const itemsSummary = (o.items || []).map(i => `${i.quantity || 1}× ${escapeHtml(i.name || '')}`).join(', ');
+        const placed = o.createdAt ? new Date(o.createdAt).toLocaleString() : '—';
+        const statusOptions = STATUS_OPTIONS.map(s =>
+            `<option value="${s}" ${o.status === s ? 'selected' : ''}>${s.replace(/_/g, ' ')}</option>`
+        ).join('');
+        // Older orders placed before pickup/delivery choice existed have no
+        // deliveryMethod field - infer from whether an address was saved.
+        const isDelivery = o.deliveryMethod ? o.deliveryMethod === 'delivery' : !!(o.customer?.address && o.customer.address.trim());
+        const methodBadge = isDelivery ?
+            '<span class="badge" style="background:#eef2ff; color:#4338ca;"><i class="fas fa-truck me-1"></i>Delivery</span>' :
+            '<span class="badge" style="background:#f0fdf4; color:#15803d;"><i class="fas fa-store me-1"></i>Pickup</span>';
+        return `
+            <tr data-id="${o.id}">
+                <td>#${o.id.slice(-6)}</td>
+                <td>
+                    <div>${escapeHtml(o.customer?.name || 'Guest')}</div>
+                    <div style="color:var(--gray-500); font-size:0.78rem;">${escapeHtml(o.customer?.phone || '')}</div>
+                </td>
+                <td>${methodBadge}</td>
+                <td style="max-width:200px; white-space:normal;">${escapeHtml(o.customer?.address || '—')}</td>
+                <td style="max-width:220px; white-space:normal;">${itemsSummary || '—'}</td>
+                <td>$${(o.total || 0).toFixed(2)}</td>
+                <td>
+                    <select class="order-status-select" data-id="${o.id}" style="padding:6px 8px; font-size:0.8rem;">
+                        ${statusOptions}
+                    </select>
+                </td>
+                <td style="white-space:nowrap; color:var(--gray-500); font-size:0.8rem;">${placed}</td>
+            </tr>
+        `;
+    }).join('');
+
+    tbody.querySelectorAll('.order-status-select').forEach(sel => {
+        sel.addEventListener('change', async () => {
+            try {
+                await updateDoc(doc(db, 'orders', sel.dataset.id), {
+                    status: sel.value,
+                    updatedAt: new Date().toISOString()
+                });
+                showToast('Order status updated', 'success');
+            } catch (e) {
+                console.error(e);
+                showToast('Error updating order status', 'error');
+            }
+        });
+    });
+}
+</script>
+</body>
+</html>

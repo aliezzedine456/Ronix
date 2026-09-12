@@ -6367,10 +6367,6 @@ function updateShopHeaderDisplay(shopData) {
         const heartIcon = isFav ? 'fas fa-heart' : 'far fa-heart';
         
         const hasStock = p.stock === undefined || p.stock === null || p.stock > 0;
-        const stockClass = !hasStock ? 'out-stock' : (p.stock && p.stock < 5 ? 'low-stock' : 'in-stock');
-        const stockText = p.stock === undefined || p.stock === null ? '' : 
-                         (p.stock === 0 ? 'Out of Stock' : 
-                          (p.stock < 5 ? `Only ${p.stock} left` : 'In Stock'));
         
         // Calculate discount percentage if original price exists, and reuse
         // that same "has an offer" signal to show the yellow "Multi buy"
@@ -6385,14 +6381,14 @@ function updateShopHeaderDisplay(shopData) {
             offerText = `<div class="offer-text">Mix and match offer. Discount applied at checkout.</div>`;
         }
         
-        // Low stock badge for category view
+        // Low stock / out-of-stock badge for category view (an "In Stock"
+        // badge for normal, plentiful stock is just noise on the card, so
+        // that case renders nothing).
         let lowStockBadge = '';
         if (p.stock !== undefined && p.stock !== null && p.stock < 5 && p.stock > 0) {
             lowStockBadge = `<div class="mt-1"><span class="stock-badge low-stock"><i class="fas fa-exclamation-triangle me-1"></i>Only ${p.stock} left</span></div>`;
         } else if (p.stock === 0) {
             lowStockBadge = `<div class="mt-1"><span class="stock-badge out-stock"><i class="fas fa-times-circle me-1"></i>Out of Stock</span></div>`;
-        } else if (p.stock !== undefined && p.stock !== null && p.stock >= 5) {
-            lowStockBadge = `<div class="mt-1"><span class="stock-badge in-stock"><i class="fas fa-check-circle me-1"></i>In Stock</span></div>`;
         }
         
         html += `
@@ -6405,7 +6401,7 @@ function updateShopHeaderDisplay(shopData) {
                     ${multiBuyBadge}
                     <h6 style="font-size:0.9rem; margin-bottom:2px; white-space: normal; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">${escapeHtml(p.name || '')}</h6>
                     ${offerText}
-                    ${renderStarsHtml(p.id)}
+                    ${renderStarsHtml(p)}
                     ${lowStockBadge}
                     <div class="product-price-row">
                         <div>
@@ -6541,10 +6537,11 @@ function updateShopHeaderDisplay(shopData) {
         const heartIcon = isFav ? 'fas fa-heart' : 'far fa-heart';
         
         const hasStock = p.stock === undefined || p.stock === null || p.stock > 0;
-        const stockClass = !hasStock ? 'out-stock' : (p.stock && p.stock < 5 ? 'low-stock' : 'in-stock');
-        const stockText = p.stock === undefined || p.stock === null ? '' : 
-                         (p.stock === 0 ? 'Out of Stock' : 
-                          (p.stock < 5 ? `Only ${p.stock} left` : 'In Stock'));
+        // Only flag low/out-of-stock — a plentiful "In Stock" state doesn't
+        // get a badge on the card.
+        const stockClass = p.stock === 0 ? 'out-stock' : 'low-stock';
+        const stockText = (p.stock !== undefined && p.stock !== null && p.stock < 5) ?
+                         (p.stock === 0 ? 'Out of Stock' : `Only ${p.stock} left`) : '';
         
         // Calculate discount percentage if original price exists, and reuse
         // that same "has an offer" signal to show the yellow "Multi buy"
@@ -6570,7 +6567,7 @@ function updateShopHeaderDisplay(shopData) {
                 ${multiBuyBadge}
                 <h6 style="font-size:0.9rem; margin-bottom:2px;">${escapeHtml(p.name || '')}</h6>
                 ${offerText}
-                ${renderStarsHtml(p.id)}
+                ${renderStarsHtml(p)}
                 ${stockText ? `
                     <div class="mt-1 mb-1">
                         <span class="stock-badge ${stockClass}"><i class="fas fa-boxes me-1"></i>${stockText}</span>
@@ -6608,20 +6605,37 @@ function updateShopHeaderDisplay(shopData) {
     productsGrid.appendChild(fragment);
 }
 
-    // Deterministic pseudo-rating (1 decimal, 3.5-5.0) + review count, derived
-    // from the product id so a given card always shows the same stars/count
-    // instead of re-randomizing on every render.
-    function getProductRating(prodId) {
+    // Known real-world ratings for specific catalog products, keyed by a
+    // substring match against the product name (case-insensitive). Used
+    // when a product doesn't have its own admin-entered rating/ratingCount.
+    // Source: Workzone 18V Li-ion Combi Drill (WWTK18/18/1) — 4.5 average
+    // from 2 verified product ratings on eBay UK.
+    const KNOWN_PRODUCT_RATINGS = [
+        { match: /workzone/i, rating: 4.5, count: 2 }
+    ];
+
+    // Rating + review count for a product. Prefers a real rating stored on
+    // the product itself (set from the admin panel), falls back to a known
+    // real-world rating matched by name, and only as a last resort derives a
+    // deterministic (not random-per-render) placeholder from the product id
+    // so a card without any real rating data still reads consistently.
+    function getProductRating(p) {
+        if (typeof p?.rating === 'number' && !isNaN(p.rating)) {
+            return { rating: p.rating, count: p.ratingCount ?? p.reviewCount ?? 0 };
+        }
+        const known = KNOWN_PRODUCT_RATINGS.find(k => k.match.test(p?.name || ''));
+        if (known) return { rating: known.rating, count: known.count };
+
         let hash = 0;
-        const str = String(prodId || '');
+        const str = String(p?.id || '');
         for (let i = 0; i < str.length; i++) { hash = (hash * 31 + str.charCodeAt(i)) >>> 0; }
         const rating = 3.5 + (hash % 16) / 10; // 3.5 - 5.0
         const count = 1 + (hash % 87); // 1 - 87
         return { rating: Math.round(rating * 10) / 10, count };
     }
 
-    function renderStarsHtml(prodId) {
-        const { rating, count } = getProductRating(prodId);
+    function renderStarsHtml(p) {
+        const { rating, count } = getProductRating(p);
         let stars = '';
         for (let i = 1; i <= 5; i++) {
             if (rating >= i) stars += '<i class="fas fa-star filled"></i>';

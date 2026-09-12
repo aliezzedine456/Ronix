@@ -730,7 +730,10 @@ let storeLocationCoords = null; // { lat, lng }
 function renderStoreCoordsPreview() {
     if (storeLocationCoords) {
         storeCoordsPreview.style.display = 'block';
-        storeCoordsText.textContent = `Saved coordinates: ${storeLocationCoords.lat.toFixed(6)}, ${storeLocationCoords.lng.toFixed(6)}`;
+        const accuracyNote = (typeof storeLocationCoords.accuracy === 'number')
+            ? ` (accurate to ~${storeLocationCoords.accuracy}m)`
+            : '';
+        storeCoordsText.textContent = `Saved coordinates: ${storeLocationCoords.lat.toFixed(6)}, ${storeLocationCoords.lng.toFixed(6)}${accuracyNote}`;
     } else {
         storeCoordsPreview.style.display = 'none';
         storeCoordsText.textContent = '';
@@ -743,44 +746,86 @@ async function loadStoreLocationSettings() {
         if (snap.exists()) {
             const data = snap.data();
             const loc = data.storeLocation || null;
+            console.log('[DEBUG] loaded storeLocation from Firestore for shopId=' + shopId + ':', loc);
             storeAddressInput.value = (loc && loc.address) || '';
             storeLocationCoords = (loc && typeof loc.lat === 'number' && typeof loc.lng === 'number')
-                ? { lat: loc.lat, lng: loc.lng }
+                ? { lat: loc.lat, lng: loc.lng, accuracy: (typeof loc.accuracy === 'number' ? loc.accuracy : undefined) }
                 : null;
             renderStoreCoordsPreview();
+        } else {
+            console.log('[DEBUG] shop document does not exist for shopId=' + shopId);
         }
     } catch (e) {
-        console.error(e);
+        console.error('[DEBUG] error loading store location:', e);
     }
 }
 
 // Automatically grabs the device's current position via the browser
 // Geolocation API and fills in the coordinates - no manual lat/lng typing
 // needed. The admin still types a human-readable address label separately.
+//
+// A single getCurrentPosition() call is often inaccurate: the very first
+// fix a device reports is frequently based on cell towers or Wi-Fi rather
+// than GPS, and can be off by hundreds of meters. To get a genuinely
+// precise pin, we keep listening (watchPosition) for a few seconds,
+// keep only the most accurate reading we've seen so far, and stop as
+// soon as we hit a tight accuracy radius (or a max wait time runs out).
 useMyLocationBtn.addEventListener('click', () => {
     if (!navigator.geolocation) {
         storeLocationStatus.textContent = 'Geolocation is not supported by this browser.';
         return;
     }
     useMyLocationBtn.disabled = true;
-    storeLocationStatus.textContent = 'Detecting your current location...';
-    navigator.geolocation.getCurrentPosition(
-        (position) => {
+
+    const GOOD_ENOUGH_METERS = 10; // stop early once we're this precise
+    const MAX_WAIT_MS = 20000; // otherwise give up refining after 20s
+
+    let bestPosition = null;
+    let watchId = null;
+    let finished = false;
+    let maxWaitTimer = null;
+
+    function finish() {
+        if (finished) return;
+        finished = true;
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+        if (maxWaitTimer) clearTimeout(maxWaitTimer);
+        useMyLocationBtn.disabled = false;
+
+        if (bestPosition) {
+            const accuracy = Math.round(bestPosition.coords.accuracy);
             storeLocationCoords = {
-                lat: position.coords.latitude,
-                lng: position.coords.longitude
+                lat: bestPosition.coords.latitude,
+                lng: bestPosition.coords.longitude,
+                accuracy
             };
             renderStoreCoordsPreview();
-            storeLocationStatus.textContent = 'Location detected. Don\'t forget to click "Save store location".';
-            useMyLocationBtn.disabled = false;
+            storeLocationStatus.textContent = `Location detected (accurate to ~${accuracy}m). Don't forget to click "Save store location".`;
+        } else {
+            storeLocationStatus.textContent = 'Could not get your location. Please allow location access, make sure GPS is on, and try again.';
+        }
+    }
+
+    storeLocationStatus.textContent = 'Detecting your precise location... hold still for a few seconds.';
+
+    watchId = navigator.geolocation.watchPosition(
+        (position) => {
+            if (!bestPosition || position.coords.accuracy < bestPosition.coords.accuracy) {
+                bestPosition = position;
+                storeLocationStatus.textContent = `Refining location... currently accurate to ~${Math.round(position.coords.accuracy)}m`;
+            }
+            if (position.coords.accuracy <= GOOD_ENOUGH_METERS) {
+                finish();
+            }
         },
         (error) => {
             console.error(error);
-            storeLocationStatus.textContent = 'Could not get your location. Please allow location access and try again.';
-            useMyLocationBtn.disabled = false;
+            if (!bestPosition) finish();
         },
-        { enableHighAccuracy: true, timeout: 12000 }
+        { enableHighAccuracy: true, timeout: MAX_WAIT_MS, maximumAge: 0 }
     );
+
+    maxWaitTimer = setTimeout(finish, MAX_WAIT_MS);
 });
 
 saveStoreLocationBtn.addEventListener('click', async () => {
@@ -794,13 +839,18 @@ saveStoreLocationBtn.addEventListener('click', async () => {
         if (storeLocationCoords) {
             storeLocation.lat = storeLocationCoords.lat;
             storeLocation.lng = storeLocationCoords.lng;
+            if (typeof storeLocationCoords.accuracy === 'number') {
+                storeLocation.accuracy = storeLocationCoords.accuracy;
+            }
         }
+        console.log('[DEBUG] saving storeLocation for shopId=' + shopId + ':', storeLocation);
         await setDoc(doc(db, 'shops', shopId), {
             storeLocation
         }, { merge: true });
+        console.log('[DEBUG] save call completed without error');
         showToast('Store location saved', 'success');
     } catch (e) {
-        console.error(e);
+        console.error('[DEBUG] save failed with error:', e);
         showToast('Error saving store location', 'error');
     }
 });

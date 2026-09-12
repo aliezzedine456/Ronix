@@ -480,9 +480,7 @@
 }
 
 .banner-container.no-banner {
-    height: 84px;
-    display: flex;
-    align-items: center;
+    display: none !important;
 }
 
 .banner-image { 
@@ -505,6 +503,18 @@
     inset: 0;
     width: 100%;
     height: 100%;
+}
+
+/* Shop-name title/subtitle text that used to sit on the banner - hidden
+   for good with an explicit rule so nothing can bring it back. */
+#bannerTitle, #bannerSubtitle {
+    display: none !important;
+}
+
+/* Compact "shop name" title bar that shows above the promo banner when
+   no banner image is active - removed for good per request. */
+#shopTopBar {
+    display: none !important;
 }
         
         .banner-overlay { 
@@ -5374,7 +5384,7 @@
         <div id="bannerSkeleton"></div>
         <div id="bannerContent" style="display:none">
             <img src="" id="bannerImage">
-            <div>
+            <div style="display:none">
                 <div>
                     <div>
                         <h2 id="bannerTitle">Shop</h2>

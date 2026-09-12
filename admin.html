@@ -292,6 +292,19 @@
                 </button>
                 <p id="storeLocationStatus" style="color: var(--gray-500); font-size: 0.8rem; margin: 8px 0 0;"></p>
 
+                <label class="field-label" style="margin-top:18px;">Or enter coordinates manually</label>
+                <div style="display:flex; gap:10px;">
+                    <div style="flex:1;">
+                        <input type="number" id="manualLatInput" step="any" placeholder="Latitude, e.g. 33.377000">
+                    </div>
+                    <div style="flex:1;">
+                        <input type="number" id="manualLngInput" step="any" placeholder="Longitude, e.g. 35.381167">
+                    </div>
+                </div>
+                <button type="button" class="btn btn-outline" id="useManualCoordsBtn" style="margin-top:10px;">
+                    <i class="fas fa-map-pin"></i> Use these coordinates
+                </button>
+
                 <div id="storeCoordsPreview" style="display:none; margin-top:14px; padding:12px 14px; background:var(--gray-100); border-radius:10px; font-size:0.85rem; color:var(--dark);">
                     <i class="fas fa-map-pin" style="color:var(--accent);"></i>
                     <span id="storeCoordsText"></span>
@@ -721,6 +734,9 @@ bannerEnabledCheckbox.addEventListener('change', saveBannerSettings);
 // ---------- Store location (Settings tab) ----------
 const storeAddressInput = document.getElementById('storeAddressInput');
 const useMyLocationBtn = document.getElementById('useMyLocationBtn');
+const manualLatInput = document.getElementById('manualLatInput');
+const manualLngInput = document.getElementById('manualLngInput');
+const useManualCoordsBtn = document.getElementById('useManualCoordsBtn');
 const storeLocationStatus = document.getElementById('storeLocationStatus');
 const storeCoordsPreview = document.getElementById('storeCoordsPreview');
 const storeCoordsText = document.getElementById('storeCoordsText');
@@ -742,6 +758,8 @@ function renderStoreCoordsPreview() {
             ? ` (accurate to ~${storeLocationCoords.accuracy}m)`
             : '';
         storeCoordsText.textContent = `Saved coordinates: ${storeLocationCoords.lat.toFixed(6)}, ${storeLocationCoords.lng.toFixed(6)}${accuracyNote}`;
+        manualLatInput.value = storeLocationCoords.lat;
+        manualLngInput.value = storeLocationCoords.lng;
     } else {
         storeCoordsPreview.style.display = 'none';
         storeCoordsText.textContent = '';
@@ -841,6 +859,22 @@ useMyLocationBtn.addEventListener('click', () => {
     );
 
     maxWaitTimer = setTimeout(finish, MAX_WAIT_MS);
+});
+
+useManualCoordsBtn.addEventListener('click', () => {
+    const lat = parseFloat(manualLatInput.value);
+    const lng = parseFloat(manualLngInput.value);
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+        storeLocationStatus.textContent = 'Enter a valid latitude between -90 and 90.';
+        return;
+    }
+    if (isNaN(lng) || lng < -180 || lng > 180) {
+        storeLocationStatus.textContent = 'Enter a valid longitude between -180 and 180.';
+        return;
+    }
+    storeLocationCoords = { lat, lng }; // no accuracy field: this is a manual, exact entry
+    renderStoreCoordsPreview();
+    storeLocationStatus.textContent = 'Coordinates set manually. Don\'t forget to click "Save store location".';
 });
 
 saveStoreLocationBtn.addEventListener('click', async () => {

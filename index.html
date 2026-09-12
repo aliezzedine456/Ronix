@@ -5293,13 +5293,29 @@
             aspect-ratio: 736 / 368;
             overflow: hidden;
         }
-        .drill-promo-img {
-            position: absolute;
-            inset: 0;
-            width: 100%;
+        /* The track holds two back-to-back copies of the image. It's
+           animated from translateX(0) to translateX(-50%) - i.e. exactly
+           one image-width - so the instant it snaps back to the start the
+           second copy is sitting in the exact spot the first one began
+           in. That's what makes it loop seamlessly instead of visibly
+           jumping. Slow, linear, x-axis only. */
+        .drill-promo-track {
+            display: flex;
             height: 100%;
+            width: max-content;
+            animation: drill-promo-scroll 30s linear infinite;
+        }
+        .drill-promo-img {
+            height: 100%;
+            width: auto;
+            display: block;
+            flex-shrink: 0;
             object-fit: cover;
             object-position: center;
+        }
+        @keyframes drill-promo-scroll {
+            from { transform: translateX(0); }
+            to   { transform: translateX(-50%); }
         }
         .drill-promo-shine { display: none; }
         .drill-promo-caption {
@@ -5323,7 +5339,7 @@
             .drill-promo-caption h2 { font-size: 2.1rem; }
         }
         @media (prefers-reduced-motion: reduce) {
-            .drill-promo-img { animation: none; }
+            .drill-promo-track { animation: none; }
         }
 
         /* Filters bar used to live inside the fixed sidebar/bottom-nav;
@@ -5402,7 +5418,10 @@
      products grid -->
 <div class="drill-promo-banner" id="drillPromoBanner">
     <div class="drill-promo-scene">
-        <img src="https://firebasestorage.googleapis.com/v0/b/shop-management-1.firebasestorage.app/o/banners%2Fdownload.jpg?alt=media&token=ae816840-a04d-409b-b399-f1e3b72405a7" alt="Power drills" class="drill-promo-img">
+        <div class="drill-promo-track">
+            <img src="https://firebasestorage.googleapis.com/v0/b/shop-management-1.firebasestorage.app/o/banners%2FChatGPT%20Image%20Sep%2012%2C%202026%2C%2011_39_48%20PM%20(1).png?alt=media&token=f51c3f3d-3b7a-4f9b-a290-460dedfe8702" alt="Power drills" class="drill-promo-img">
+            <img src="https://firebasestorage.googleapis.com/v0/b/shop-management-1.firebasestorage.app/o/banners%2FChatGPT%20Image%20Sep%2012%2C%202026%2C%2011_39_48%20PM%20(1).png?alt=media&token=f51c3f3d-3b7a-4f9b-a290-460dedfe8702" alt="" class="drill-promo-img" aria-hidden="true">
+        </div>
         <div class="drill-promo-shine"></div>
     </div>
 </div>

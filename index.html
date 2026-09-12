@@ -5695,6 +5695,7 @@
     let currentUser = null;
     let userProfile = null;
     let shopId = new URLSearchParams(window.location.search).get('id') || 'demoShop';
+    console.log('[DEBUG] storefront running with shopId =', shopId, '(from URL:', window.location.href, ')');
     let shopData = null;
     let shopOwnerPhone = '';
     let shopOwnerEmail = 'aliezzshadi035@gmail.com';
@@ -6061,6 +6062,7 @@ function updateShopHeaderDisplay(shopData) {
         if (shopDoc.exists()) {
             shopData = shopDoc.data();
             shopData.id = shopDoc.id;
+            console.log('[DEBUG] storefront loaded shopId=' + shopId + ', storeLocation:', shopData.storeLocation);
             
             if (shopData.ownerPhone) shopOwnerPhone = shopData.ownerPhone;
             if (shopData.ownerEmail) shopOwnerEmail = shopData.ownerEmail;

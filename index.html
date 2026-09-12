@@ -305,8 +305,8 @@
             z-index: 9999;
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            max-width: 350px;
+            gap: 8px;
+            max-width: 300px;
             width: calc(100% - 40px);
             pointer-events: none;
         }
@@ -314,14 +314,14 @@
         .toast-message {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
-            border-radius: var(--border-radius-md);
-            padding: 16px 20px;
-            box-shadow: var(--shadow-lg);
+            border-radius: var(--border-radius-sm);
+            padding: 10px 14px;
+            box-shadow: var(--shadow-md);
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 9px;
             animation: slideInRight 0.3s ease forwards;
-            border-left: 4px solid;
+            border-left: 3px solid;
             pointer-events: auto;
             border: 1px solid rgba(255,255,255,0.2);
         }
@@ -332,13 +332,13 @@
         .toast-message.warning { border-left-color: var(--toast-warning); }
         
         .toast-icon {
-            width: 36px;
-            height: 36px;
+            width: 26px;
+            height: 26px;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.2rem;
+            font-size: 0.85rem;
             flex-shrink: 0;
         }
         
@@ -348,9 +348,9 @@
         .toast-message.warning .toast-icon { background: var(--toast-warning); color: var(--text-color); }
         
         .toast-content { flex: 1; }
-        .toast-title { font-weight: 600; margin-bottom: 2px; font-size: 0.95rem; }
-        .toast-text { font-size: 0.85rem; color: var(--gray-600); line-height: 1.3; }
-        .toast-close { color: var(--gray-500); cursor: pointer; padding: 5px; }
+        .toast-title { font-weight: 600; margin-bottom: 1px; font-size: 0.8rem; }
+        .toast-text { font-size: 0.72rem; color: var(--gray-600); line-height: 1.25; }
+        .toast-close { color: var(--gray-500); cursor: pointer; padding: 4px; font-size: 0.8rem; }
         
         @keyframes slideInRight {
             from { transform: translateX(100%); opacity: 0; }
@@ -4633,23 +4633,23 @@
             left: 50% !important;
             right: auto !important;
             transform: translateX(-50%);
-            width: calc(100% - 32px) !important;
-            max-width: 420px !important;
+            width: calc(100% - 48px) !important;
+            max-width: 320px !important;
         }
         .toast-message {
             border-left: none !important;
             border: none !important;
-            border-radius: var(--ios-radius-md) !important;
+            border-radius: var(--ios-radius-sm) !important;
             background: var(--ios-nav-blur) !important;
             -webkit-backdrop-filter: saturate(180%) blur(20px);
             backdrop-filter: saturate(180%) blur(20px);
-            box-shadow: 0 8px 30px -6px rgba(0,0,0,0.18), 0 1px 3px rgba(0,0,0,0.08) !important;
+            box-shadow: 0 6px 22px -6px rgba(0,0,0,0.16), 0 1px 2px rgba(0,0,0,0.06) !important;
             animation: iosBannerIn 0.45s var(--ios-spring) forwards !important;
         }
         .toast-message.hide { animation: iosBannerOut 0.3s var(--ios-spring) forwards !important; }
         @keyframes iosBannerIn { from { transform: translateY(-120%) scale(0.96); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
         @keyframes iosBannerOut { from { transform: translateY(0) scale(1); opacity: 1; } to { transform: translateY(-120%) scale(0.96); opacity: 0; } }
-        .toast-icon { border-radius: 10px !important; }
+        .toast-icon { border-radius: 8px !important; }
 
         /* ---- Social links / any centered modal: iOS action sheet ---- */
         .social-modal {
@@ -5625,6 +5625,11 @@
     // ---------- PANEL STACK & BACK HANDLER ----------
     let panelStack = [];
     let panelHistoryCounter = 0;
+    // Set right before we call history.back()/history.go() ourselves (to
+    // keep browser history in sync after an in-app close button), so the
+    // popstate that results from OUR OWN navigation doesn't get treated as
+    // a fresh user Back press and close yet another panel underneath.
+    let suppressNextPopstate = false;
 
     function openPanel(panel) {
         setBodyScroll(true);
@@ -5637,7 +5642,8 @@
         }
     }
 
-    function closePanel(panel) {
+    function closePanel(panel, fromPopState = false) {
+        const wasOnTopOfStack = panelStack[panelStack.length - 1] === panel;
         panel.classList.remove('show');
         panelStack = panelStack.filter(p => p !== panel);
         
@@ -5650,13 +5656,33 @@
             // button, or clicking the dimmed backdrop outside the panel.
             setActiveNavItem('navHome');
         }
+
+        // If this close was triggered by an in-app control (an "X"/back
+        // arrow, "add to cart then close", etc.) rather than by the phone's
+        // own Back button, the pushState entry openPanel() created for this
+        // panel is still sitting in browser history. Left alone, the next
+        // real physical/browser Back press would land on that stale entry
+        // and silently do nothing (panelStack no longer has this panel),
+        // making Back feel like it takes two presses. Consuming it here
+        // keeps one history entry per open panel.
+        if (!fromPopState && wasOnTopOfStack) {
+            suppressNextPopstate = true;
+            history.back();
+        }
     }
 
     function closeAllPanels() { 
+        const stackedCount = panelStack.length;
         document.querySelectorAll('.slide-panel, .product-detail-panel, .category-products-panel, .order-track-panel').forEach(p=>p.classList.remove('show')); 
         panelStack = [];
         setBodyScroll(false);
         setActiveNavItem('navHome');
+        // Same history-sync reasoning as closePanel() above, collapsed into
+        // a single jump back over every panel this closed at once.
+        if (stackedCount > 0) {
+            suppressNextPopstate = true;
+            history.go(-stackedCount);
+        }
     }
 
     function setBodyScroll(disable) {
@@ -5666,9 +5692,13 @@
 
     function handleBackNavigation(event) {
         event.preventDefault();
+        if (suppressNextPopstate) {
+            suppressNextPopstate = false;
+            return;
+        }
         if (panelStack.length > 0) {
             const topPanel = panelStack[panelStack.length - 1];
-            closePanel(topPanel);
+            closePanel(topPanel, true);
         }
     }
 
